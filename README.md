@@ -24,7 +24,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 - **Bouton « Enregistrer »** : envoie les dernières saisies et vérifie que tout est bien arrivé.
 - **Plusieurs appareils** : les modifications faites ailleurs apparaissent en direct (ISMI, BTS). Pour PRE, un contrôle de version empêche d'écraser sans le savoir le travail fait sur un autre appareil.
 - **Historique** : la base garde l'état précédent des documents modifiés ou supprimés (ISMI, BTS) et les 100 dernières versions des données PRE. Restauration possible en cas d'erreur.
-- **Copies de sécurité** : depuis l'accueil, « Télécharger une sauvegarde complète » (un fichier .json). Dans chaque partie : Réglages → « Télécharger une copie de sécurité » / « Restaurer une sauvegarde… » (accepte aussi les sauvegardes .json de la première version ISMI) ; dans PRE, ses propres boutons « Exporter / Ouvrir une sauvegarde ».
+- **Copies de sécurité** : accueil → onglet *Administration* → « Télécharger une sauvegarde complète » (un fichier .json). Dans chaque partie : Réglages → « Télécharger une copie de sécurité » / « Restaurer une sauvegarde… » (accepte aussi les sauvegardes .json de la première version ISMI) ; dans PRE, ses propres boutons « Exporter / Ouvrir une sauvegarde ».
 
 > Dans le bandeau de l'interface PRE, le message « Modifications non enregistrées dans le fichier » concerne uniquement la copie facultative sur l'ordinateur (bouton « Enregistrer le fichier » d'origine). L'enregistrement en ligne est indiqué dans la barre bleue du haut.
 
@@ -37,13 +37,13 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
    select id, 'Prénom Nom' from auth.users where email = 'votre.adresse@exemple.fr';
    ```
 3. **Fermer les inscriptions** — *Authentication* → *Sign In / Providers* → désactiver *Allow new users to sign up*.
-4. **Se connecter** à l'application, puis sur l'accueil : *Double authentification* → *Activer*.
+4. **Se connecter** à l'application, puis accueil → onglet *Mon compte* → *Double authentification* → *Activer*.
 5. **Ouvrir *Habilitations PRE-VE*** — l'interface est déjà intégrée. À la toute première ouverture, les données de votre fichier PRE sont copiées dans la base. Si votre navigateur contient des données PRE plus récentes que ce fichier : dans votre ancien fichier, *Exporter la sauvegarde*, puis dans l'application *Ouvrir une sauvegarde*.
 
 ## Gestion courante
 
 - **Supprimer une classe** (administrateur) : Réglages → *Classes de la formation* → *Supprimer* sur la ligne de la classe, puis retaper son nom pour confirmer. Ses étudiants, évaluations et positionnements sont effacés pour tous ; une copie reste dans l'historique de la base (restauration possible en cas d'erreur).
-- **Collègues** : accueil → section *Équipe* (visible de l'administrateur seul) → *Ajouter un collègue*. Vous choisissez son nom, son adresse (identifiant) et ses accès : ISMI et/ou BTS MV (toutes les classes ou seulement certaines), PRE. Un mot de passe provisoire s'affiche une seule fois : transmettez-le par un moyen sûr ; le collègue choisit son propre mot de passe à la première connexion. *Modifier*, *Nouveau mot de passe* (remet aussi à zéro sa double authentification) et *Retirer* sont dans la même liste.
+- **Collègues** : accueil → onglet *⚙ Administration* (visible de l'administrateur seul) → *Équipe* → *Ajouter un collègue*. Vous choisissez son nom, son adresse (identifiant) et ses accès : ISMI et/ou BTS MV (toutes les classes ou seulement certaines), PRE. Un mot de passe provisoire s'affiche une seule fois : transmettez-le par un moyen sûr ; le collègue choisit son propre mot de passe à la première connexion. *Modifier*, *Nouveau mot de passe* (remet aussi à zéro sa double authentification) et *Retirer* sont dans la même liste.
 - **Droits d'un collègue** (appliqués par la base, pas seulement par l'affichage) : il ne voit que les parties et classes attribuées ; il crée ses évaluations et peut les modifier ou les supprimer ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres ; classes, étudiants, barème, restauration et historique restent réservés à l'administrateur. L'accès PRE est complet ou nul (l'interface PRE ne distingue pas les formateurs).
 - **Mot de passe oublié** : *Authentication* → *Users* → l'utilisateur → définir un nouveau mot de passe. Téléphone perdu (double authentification) : même écran → supprimer le facteur MFA.
 - **Nouvelle version de l'interface PRE** : `node outils/construire-pre.mjs "chemin/du/fichier.html"` chiffre la nouvelle version avec une nouvelle clé (écrite dans `outils/cles.local.json`, jamais publié). Ajouter cette clé à la table `app_keys` **avant** de publier `assets/pre-ve.bin`. Les données ne changent pas.

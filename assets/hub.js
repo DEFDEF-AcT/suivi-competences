@@ -76,7 +76,7 @@ async function doEnter() {
   const next = A.nextPage();
   if (next && A.canUse(next.replace('.html', ''))) { location.replace(next); return; }
   const msg = new URLSearchParams(location.search).get('msg');
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', location.pathname + location.hash);
   show('vHub');
   A.mountBar('Accueil').querySelector('[data-auth=home]').hidden = true;
   $('#hubName').textContent = s.name.includes('@') ? '' : s.name;
@@ -84,9 +84,21 @@ async function doEnter() {
   $('#tIsmi').hidden = !A.canUse('ismi'); $('#tBts').hidden = !A.canUse('bts'); $('#tPre').hidden = !A.canUse('pre');
   $('#noAccess').hidden = ['ismi', 'bts', 'pre'].some(a => A.canUse(a));
   if (msg === 'acces') toast(MSG.acces);
+  $('#tabAdmin').hidden = !A.isAdmin();
   stats(); renderMfa();
-  if (A.isAdmin()) { $('#teamCard').hidden = false; renderTeam(); }
+  showTab();
 }
+
+/* ---------- Onglets de l'accueil ---------- */
+let teamLoaded = false;
+function showTab() {
+  let t = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if (!['enseignements', 'compte', 'administration'].includes(t) || (t === 'administration' && !A.isAdmin())) t = 'enseignements';
+  document.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== t; });
+  document.querySelectorAll('.hubtabs a').forEach(a => { if (a.dataset.tab === t) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (t === 'administration' && !teamLoaded) { teamLoaded = true; renderTeam(); }
+}
+window.addEventListener('hashchange', () => { if (!$('#vHub').hidden) showTab(); });
 
 /* ---------- Premier mot de passe ---------- */
 function showFirst() { show('vPwd'); $('#f1').focus(); }

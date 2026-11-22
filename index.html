@@ -7,9 +7,9 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>Suivi des compétences</title>
-<link rel="icon" href="assets/icon.svg?v=202611222019" type="image/svg+xml">
-<link rel="stylesheet" href="assets/eval.css?v=202611222019">
-<link rel="stylesheet" href="assets/app.css?v=202611222019">
+<link rel="icon" href="assets/icon.svg?v=202611222024" type="image/svg+xml">
+<link rel="stylesheet" href="assets/eval.css?v=202611222024">
+<link rel="stylesheet" href="assets/app.css?v=202611222024">
 </head>
 <body>
 
@@ -61,58 +61,81 @@
 <main class="hub" id="vHub" hidden>
   <div class="hubhead">
     <div class="grow"><span class="eyebrow" id="hubEtab"></span><h1>Bonjour <span id="hubName"></span></h1></div>
-  </div>
-  <div class="tiles">
-    <a class="card tile" href="ismi.html" id="tIsmi" hidden><span class="eyebrow">Bac+3</span><h2>Évaluations ISMI</h2><p>Blocs 1 et 3 : positionnement MI à TBM, profil de compétences, synthèse de classe, export Excel.</p><span class="stat-line" id="stIsmi">…</span><span class="go">Ouvrir →</span></a>
-    <a class="card tile t-bts" href="bts.html" id="tBts" hidden><span class="eyebrow">BTS Maintenance des véhicules</span><h2>Évaluations BTS MV</h2><p>Pôles 1 à 4 : critères du référentiel 2027, statuts A / M / FM, même fonctionnement que l'ISMI.</p><span class="stat-line" id="stBts">…</span><span class="go">Ouvrir →</span></a>
-    <a class="card tile t-pre" href="pre.html" id="tPre" hidden><span class="eyebrow">NF C 18-550 · OGELI</span><h2>Habilitations PRE-VE</h2><p>L'interface de gestion des habilitations, à l'identique, avec ses données enregistrées en ligne.</p><span class="stat-line" id="stPre">…</span><span class="go">Ouvrir →</span></a>
+    <nav class="hubtabs" aria-label="Sections de l'accueil">
+      <a href="#enseignements" data-tab="enseignements">Enseignements</a>
+      <a href="#compte" data-tab="compte">Mon compte</a>
+      <a href="#administration" data-tab="administration" id="tabAdmin" hidden><span aria-hidden="true">⚙</span> Administration</a>
+    </nav>
   </div>
 
-  <p class="msg" id="noAccess" hidden>Aucune partie ne vous est encore attribuée. Demandez à l'administrateur de vous donner accès.</p>
-
-  <section class="card teamcard" id="teamCard" hidden>
-    <div class="teamhead"><div><h2>Équipe</h2>
-      <p>Chaque collègue ne voit que les parties et les classes que vous lui attribuez. Il crée ses évaluations et en garde la main entière ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres. Classes, étudiants et barème restent gérés par vous.</p></div></div>
-    <div id="teamBox"><p>Chargement…</p></div>
+  <!-- Onglet : enseignements -->
+  <section data-pane="enseignements">
+    <div class="tiles">
+      <a class="card tile" href="ismi.html" id="tIsmi" hidden><span class="eyebrow">Bac+3</span><h2>Évaluations ISMI</h2><p>Blocs 1 et 3 : positionnement MI à TBM, profil de compétences, synthèse de classe, export Excel.</p><span class="stat-line" id="stIsmi">…</span><span class="go">Ouvrir →</span></a>
+      <a class="card tile t-bts" href="bts.html" id="tBts" hidden><span class="eyebrow">BTS Maintenance des véhicules</span><h2>Évaluations BTS MV</h2><p>Pôles 1 à 4 : critères du référentiel 2027, statuts A / M / FM, même fonctionnement que l'ISMI.</p><span class="stat-line" id="stBts">…</span><span class="go">Ouvrir →</span></a>
+      <a class="card tile t-pre" href="pre.html" id="tPre" hidden><span class="eyebrow">NF C 18-550 · OGELI</span><h2>Habilitations PRE-VE</h2><p>L'interface de gestion des habilitations, à l'identique, avec ses données enregistrées en ligne.</p><span class="stat-line" id="stPre">…</span><span class="go">Ouvrir →</span></a>
+    </div>
+    <p class="msg" id="noAccess" hidden>Aucune partie ne vous est encore attribuée. Demandez à l'administrateur de vous donner accès.</p>
   </section>
 
-  <div class="panels">
-    <section class="card">
-      <h2>Sauvegarde</h2>
-      <p>Chaque modification est enregistrée automatiquement dans la base sécurisée, avec un historique. Téléchargez de temps en temps une copie complète à ranger dans vos dossiers.</p>
-      <div class="inline"><button class="btn btn-primary" type="button" id="bBackup">Télécharger une sauvegarde complète</button></div>
-      <p class="xs muted" id="backupMsg"></p>
+  <!-- Onglet : mon compte -->
+  <section data-pane="compte" hidden>
+    <div class="panels">
+      <section class="card">
+        <h2>Double authentification</h2>
+        <div id="mfaBox"><p>Chargement…</p></div>
+      </section>
+
+      <section class="card">
+        <h2>Mot de passe</h2>
+        <form id="fPass" class="stack" novalidate>
+          <label class="fld"><span>Nouveau mot de passe (12 caractères au moins)</span><input id="p1" type="password" autocomplete="new-password" minlength="12"></label>
+          <label class="fld"><span>Confirmation</span><input id="p2" type="password" autocomplete="new-password" minlength="12"></label>
+          <div class="msg" id="passMsg" hidden></div>
+          <div class="inline"><button class="btn" type="submit">Changer le mot de passe</button></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Session</h2>
+        <p>Déconnexion automatique après une heure sans activité, sauf sur un appareil où vous avez choisi de rester connecté.</p>
+        <div class="inline"><button class="btn" type="button" id="bOut">Se déconnecter</button><button class="btn btn-danger" type="button" id="bOutAll">Déconnecter tous mes appareils</button></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- Onglet : administration (administrateur seul) -->
+  <section data-pane="administration" hidden>
+    <section class="card teamcard" id="teamCard">
+      <div class="teamhead"><div><h2>Équipe</h2>
+        <p>Chaque collègue ne voit que les parties et les classes que vous lui attribuez. Il crée ses évaluations et en garde la main entière ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres. Classes, étudiants et barème restent gérés par vous.</p></div></div>
+      <div id="teamBox"><p>Chargement…</p></div>
     </section>
 
-    <section class="card">
-      <h2>Double authentification</h2>
-      <div id="mfaBox"><p>Chargement…</p></div>
-    </section>
+    <div class="panels">
+      <section class="card">
+        <h2>Classes</h2>
+        <p>Créer, renommer ou supprimer une classe, gérer ses étudiants et le barème : onglet <b>Réglages</b> de chaque formation.</p>
+        <div class="inline"><a class="btn" href="ismi.html#reglages">Classes ISMI</a><a class="btn" href="bts.html#reglages">Classes BTS MV</a></div>
+      </section>
 
-    <section class="card">
-      <h2>Mot de passe</h2>
-      <form id="fPass" class="stack" novalidate>
-        <label class="fld"><span>Nouveau mot de passe (12 caractères au moins)</span><input id="p1" type="password" autocomplete="new-password" minlength="12"></label>
-        <label class="fld"><span>Confirmation</span><input id="p2" type="password" autocomplete="new-password" minlength="12"></label>
-        <div class="msg" id="passMsg" hidden></div>
-        <div class="inline"><button class="btn" type="submit">Changer le mot de passe</button></div>
-      </form>
-    </section>
+      <section class="card">
+        <h2>Sauvegarde complète</h2>
+        <p>Chaque modification est enregistrée automatiquement dans la base sécurisée, avec un historique. Téléchargez de temps en temps une copie complète (ISMI, BTS, PRE) à ranger dans un dossier protégé.</p>
+        <div class="inline"><button class="btn btn-primary" type="button" id="bBackup">Télécharger une sauvegarde complète</button></div>
+        <p class="xs muted" id="backupMsg"></p>
+      </section>
+    </div>
+  </section>
 
-    <section class="card">
-      <h2>Session</h2>
-      <p>Déconnexion automatique après une heure sans activité, sauf sur un appareil où vous avez choisi de rester connecté.</p>
-      <div class="inline"><button class="btn" type="button" id="bOut">Se déconnecter</button><button class="btn btn-danger" type="button" id="bOutAll">Déconnecter tous mes appareils</button></div>
-    </section>
-  </div>
   <p class="foot">Base de données Supabase hébergée à Paris · connexion chiffrée · accès limité aux comptes autorisés.</p>
 </main>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="assets/vendor/supabase.js?v=202611222019"></script>
-<script src="assets/config.js?v=202611222019"></script>
-<script src="assets/auth.js?v=202611222019"></script>
-<script src="assets/hub.js?v=202611222019"></script>
+<script src="assets/vendor/supabase.js?v=202611222024"></script>
+<script src="assets/config.js?v=202611222024"></script>
+<script src="assets/auth.js?v=202611222024"></script>
+<script src="assets/hub.js?v=202611222024"></script>
 </body>
 </html>

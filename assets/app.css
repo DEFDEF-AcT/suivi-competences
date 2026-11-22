@@ -84,3 +84,12 @@ body.prepage::before{display:none}
 .creds{margin-top:14px; border-color:var(--c-tbm)}
 pre.secret{white-space:pre-wrap; margin:0; padding:10px 12px; font-size:var(--fs-sm)}
 .chip.author{background:#EEF2F8; color:var(--navy)}
+
+/* Accueil : onglets discrets */
+.hubhead{align-items:flex-end}
+.hubtabs{display:flex; gap:2px; flex-wrap:wrap; border-bottom:1px solid var(--line)}
+.hubtabs a{padding:7px 12px 9px; font-size:var(--fs-sm); font-weight:700; color:var(--ink-3); text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-1px; white-space:nowrap}
+.hubtabs a:hover{color:var(--ink)}
+.hubtabs a[aria-current="page"]{color:var(--navy); border-bottom-color:var(--amber)}
+section[data-pane] > .panels:first-child{margin-top:0}
+section[data-pane="administration"] > .teamcard{margin-top:0}
