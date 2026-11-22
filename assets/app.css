@@ -110,3 +110,22 @@ section[data-pane="administration"] > .teamcard{margin-top:0}
   .classpick.big select{flex:1; min-width:0; max-width:none}
   .saveblock{width:100%; justify-content:space-between}
 }
+
+/* BTS : couleurs des pôles (planches « Savoirs » de l'équipe) */
+.pole-1{--pole:#c2410c; --pole-bg:#FCEDE4} .pole-2{--pole:#6a4a9a; --pole-bg:#F0EAF7}
+.pole-3{--pole:#2e7a52; --pole-bg:#E5F2EA} .pole-4{--pole:#1e5a86; --pole-bg:#E3EEF7}
+.chip.pole{background:var(--pole-bg); color:var(--pole); border:1px solid var(--pole)}
+.polehead{color:var(--pole); border-bottom:2px solid var(--pole); padding-bottom:4px; margin:18px 0 8px; font-size:var(--fs-md)}
+th.polehead{background:var(--pole-bg); text-align:center; margin:0; font-size:var(--fs-xs); border-bottom:2px solid var(--pole)}
+.profile-side .polehead:first-child{margin-top:0}
+tr.grouprow td{background:var(--pole-bg); color:var(--pole); font-weight:800; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em}
+.poletable td.polecell, .poletable th.polecell{background:#F7F9FB; border-left:2px solid var(--line)}
+.domfld{max-width:460px}
+.domfld select{font-weight:700; border:2px solid var(--navy)}
+details.polegroup{border:1px solid var(--line); border-left:4px solid var(--pole); border-radius:var(--r-sm); margin:8px 0; padding:0 10px; background:var(--surface)}
+details.polegroup > summary{cursor:pointer; padding:9px 0; font-size:var(--fs-sm); display:flex; gap:8px; align-items:center; list-style-position:inside}
+details.polegroup > summary b{color:var(--pole)}
+details.polegroup[open] > summary{border-bottom:1px solid var(--line); margin-bottom:4px}
+.dombadge{background:var(--pole); color:#fff; border-radius:999px; padding:1px 8px; font-size:var(--fs-xs); font-weight:700}
+.pgcount{margin-left:auto; font-size:var(--fs-xs); color:var(--ink-3)}
+.rd-band.pole-1, .rd-band.pole-2, .rd-band.pole-3, .rd-band.pole-4{stroke:var(--pole)}

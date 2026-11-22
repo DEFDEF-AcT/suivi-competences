@@ -24,6 +24,19 @@ const UNGRADED = CFG.ungraded || [];
 const unitOf = ev => (ev && REF[ev.bloc]) ? ev.bloc : DEFAULT_UNIT;
 const actOf = c => c.act;
 const LSK = k => CFG.app + '-eval-' + k;
+/* BTS (CFG.unified) : les pôles ne sont pas dissociés — toutes les évaluations ensemble,
+   pôle dominant choisi à la création, synthèse et profil sur les 4 pôles. */
+const UNIFIED = !!CFG.unified;
+UNITS.forEach(u => { REF[u].comps.forEach(c => { c.unit = u; }); REF[u].acts.forEach(a => { a.unit = u; }); });
+const ALL_COMPS = UNITS.flatMap(u => REF[u].comps), ALL_ACTS = UNITS.flatMap(u => REF[u].acts);
+if (UNIFIED){ COMPS = ALL_COMPS; ACTS = ALL_ACTS; }
+const scopeLabel = () => UNIFIED ? CFG.scopeLabel : UNIT + ' ' + S.bloc;
+const poleCode = u => CFG.unitMark + u;
+const poleShort = u => REF[u].short || REF[u].label;
+if (UNIFIED) UNITS.forEach(u => { ACT[poleCode(u)] = {code:poleCode(u), band:poleShort(u), name:REF[u].label, unit:u}; });
+const poleChip = u => `<span class="chip pole pole-${u}" title="${esc('Pôle dominant : ' + REF[u].label)}">${poleCode(u)} dominant</span>`;
+const avgOf = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const lvOfAvg = v => v == null ? null : LEVELS[Math.min(4, Math.max(1, Math.round(v))) - 1];
 
 /* ---------- Outils ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -70,7 +83,7 @@ const resFor = (evId, sid) => S.results.get(evId + '_' + sid);
 const canEditEval = ev => !!ev && S.canWrite && (S.admin || ev.createdBy === S.me);
 const authorOf = ev => ev && ev.createdBy ? (ev.createdBy === S.me ? 'vous' : (S.names[ev.createdBy] || 'un collègue')) : '';
 const sortedStudents = () => S.students.slice().sort((a, b) => cmpFr(a.nom, b.nom) || cmpFr(a.prenom, b.prenom));
-const blocEvals = () => S.evals.filter(e => unitOf(e) === S.bloc);
+const blocEvals = () => UNIFIED ? S.evals.slice() : S.evals.filter(e => unitOf(e) === S.bloc);
 const sortedEvals = (dir = 'desc') => blocEvals().sort((a, b) => {
   const k = String(a.date || '').localeCompare(String(b.date || '')) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
   return dir === 'desc' ? -k : k;
@@ -201,7 +214,7 @@ function radarSVG(Wc, items, sl, who, actAvg){
     const av = actAvg[gr.act];
     const tip = `${A.code} — ${A.name}\n${who} : ${av == null ? W.none : 'niveau moyen ' + fmtNote(av) + ' sur 4 (≈ ' + LEVELS[Math.round(av) - 1] + ')'}`;
     defs += `<path id="rdArc${k}" d="${d}"/>`;
-    g += `<g class="rd-act" data-tip="${esc(tip)}" tabindex="0"><path class="rd-band${k % 2 ? ' odd' : ''}" d="${d}"/><text class="rd-bandtxt" text-anchor="middle" dominant-baseline="central"><textPath href="#rdArc${k}" startOffset="50%">${esc(txt)}</textPath></text></g>`;
+    g += `<g class="rd-act" data-tip="${esc(tip)}" tabindex="0"><path class="rd-band${k % 2 ? ' odd' : ''}${UNIFIED && A.unit && A.code === poleCode(A.unit) ? ' pole-' + A.unit : ''}" d="${d}"/><text class="rd-bandtxt" text-anchor="middle" dominant-baseline="central"><textPath href="#rdArc${k}" startOffset="50%">${esc(txt)}</textPath></text></g>`;
   });
   // Moyenne de la classe puis étudiant
   const polyOf = key => items.map((it, i) => f(pt(i, it[key] || 0))).join(' ');
@@ -222,7 +235,7 @@ function radarSVG(Wc, items, sl, who, actAvg){
     g += `<g class="rd-label" data-tip="${esc(tip)}" tabindex="0"><text x="${x.toFixed(1)}" y="${y0.toFixed(1)}" text-anchor="${anc}"><tspan class="rd-code${it.na ? ' na' : ''}" x="${x.toFixed(1)}">${it.code}</tspan>${lines.map(t => `<tspan class="rd-short${it.na ? ' na' : ''}" x="${x.toFixed(1)}" dy="13">${esc(t)}</tspan>`).join('')}</text></g>`;
     if (it.v){ const p = pt(i, it.v); g += `<circle class="ch-hit" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="12" data-tip="${esc(tip)}"/>`; }
   });
-  const aria = 'Toile d\'araignée des compétences du ' + UNIT.toLowerCase() + ' ' + S.bloc + ' : ' + items.map(it => it.code + ' ' + (it.na ? 'non évaluée' : it.lv || 'non positionné')).join(', ');
+  const aria = 'Toile d\'araignée des compétences (' + scopeLabel() + ') : ' + items.map(it => it.code + ' ' + (it.na ? 'non évaluée' : it.lv || 'non positionné')).join(', ');
   return `<svg class="chart radar" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(aria)}"><defs>${defs}</defs>${g}</svg>`;
 }
 
@@ -388,12 +401,13 @@ function setClass(id){
 
 /* ---------- Bloc évalué (Bloc 1 / Bloc 3) ---------- */
 function applyBloc(){
+  if (UNIFIED){ $('#blocMark').textContent = CFG.unifiedMark; $('#blocSub').textContent = CFG.unifiedSub; return; }
   COMPS = REF[S.bloc].comps; ACTS = REF[S.bloc].acts;
   $('#blocMark').textContent = CFG.unitMark + S.bloc; $('#blocSub').textContent = REF[S.bloc].label;
   document.querySelectorAll('.blocbtn').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.bloc === S.bloc)));
 }
 function setBloc(b, keepRoute){
-  if (!REF[b] || b === S.bloc) return;
+  if (UNIFIED || !REF[b] || b === S.bloc) return;
   S.bloc = b; LS.set(LSK('bloc'), String(b)); applyBloc(); closePanel(); S.builtKey = '';
   if (!keepRoute && S.route.view === 'eval') location.hash = '#evaluations';
   scheduleRender();
@@ -462,7 +476,7 @@ function buildNoClass(){
 /* --- Vue : liste des évaluations --- */
 VIEWS.evaluations = {
   build(){
-    return `<div class="vhead"><div class="grow"><h1>Évaluations — ${UNIT} ${S.bloc}</h1><div class="meta" id="evCount"></div></div>
+    return `<div class="vhead"><div class="grow"><h1>Évaluations — ${esc(scopeLabel())}</h1><div class="meta" id="evCount"></div></div>
       <div class="actions">${S.canWrite ? `<button class="btn btn-primary" data-act="new-eval">+ Nouvelle évaluation</button>` : ''}</div></div>
       <div id="evHint"></div><div class="evlist" id="evList"></div>`;
   },
@@ -471,7 +485,7 @@ VIEWS.evaluations = {
     $('#evCount').textContent = `${evs.length} évaluation${evs.length > 1 ? 's' : ''} · ${S.students.length} étudiant${S.students.length > 1 ? 's' : ''}`;
     $('#evHint').innerHTML = !S.students.length ? `<div class="card pad" style="margin-bottom:12px"><b>Ajoutez d'abord vos étudiants.</b> <span class="muted">Collez la liste de la classe dans l'onglet</span> <a href="#etudiants">Étudiants</a><span class="muted">, puis ouvrez une évaluation pour remplir la grille.</span></div>` : '';
     if (!evs.length){
-      $('#evList').innerHTML = `<div class="card empty"><h2>Aucune évaluation dans cette classe</h2><p>Créez un TP, un oral ou un cas pratique, choisissez les compétences du ${UNIT.toLowerCase()} ${S.bloc} évaluées (2 à 4 suffisent), puis positionnez chaque étudiant de MI à TBM.</p>${S.canWrite ? `<button class="btn btn-primary" data-act="new-eval">+ Nouvelle évaluation</button>` : ''}</div>`;
+      $('#evList').innerHTML = `<div class="card empty"><h2>Aucune évaluation dans cette classe</h2><p>Créez un TP, un oral ou un cas pratique, choisissez ${UNIFIED ? 'le pôle dominant et les critères évalués' : `les compétences du ${UNIT.toLowerCase()} ${S.bloc} évaluées (2 à 4 suffisent)`}, puis positionnez chaque étudiant de MI à TBM.</p>${S.canWrite ? `<button class="btn btn-primary" data-act="new-eval">+ Nouvelle évaluation</button>` : ''}</div>`;
       return;
     }
     $('#evList').innerHTML = evs.map(ev => {
@@ -479,7 +493,7 @@ VIEWS.evaluations = {
       const chips = evalLines(ev).map(l => `<span class="chip code" title="${esc(l.short)}">${esc(l.key === 'TR' ? 'Transverse' : l.code)}</span>`).join('');
       return `<a class="card evrow" href="#eval-${esc(ev.id)}">
         <div class="evdate">${esc(fmtDate(ev.date))}</div>
-        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips"><span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}${ev.createdBy && ev.createdBy !== S.me ? `<span class="chip author">par ${esc(authorOf(ev))}</span>` : ''}</div></div>
+        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips">${UNIFIED ? poleChip(unitOf(ev)) : ''}<span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}${ev.createdBy && ev.createdBy !== S.me ? `<span class="chip author">par ${esc(authorOf(ev))}</span>` : ''}</div></div>
         <div class="evprog"><div class="prog">${st.done} / ${st.total} évalués · ${st.validated} validé${st.validated > 1 ? 's' : ''}</div><div class="bar"><i style="width:${pct}%"></i></div></div>
         <div class="avg"><span class="xs muted">Moyenne</span><br><strong>${fmtNote(st.avg)}</strong></div></a>`;
     }).join('');
@@ -494,13 +508,13 @@ VIEWS.eval = {
   },
   update(){
     const ev = evById(S.route.id);
-    if (ev && unitOf(ev) !== S.bloc){ setBloc(unitOf(ev), true); return; }
+    if (!UNIFIED && ev && unitOf(ev) !== S.bloc){ setBloc(unitOf(ev), true); return; }
     if (!ev){ $('#evHead').innerHTML = `<a class="back" href="#evaluations">← Évaluations</a><div class="card empty"><h2>Évaluation introuvable</h2><p>Elle a peut-être été supprimée, ou elle appartient à une autre classe.</p></div>`; $('#evStats').innerHTML = ''; $('#evGrid').innerHTML = ''; $('#evGrid').style.display = 'none'; $('#evLegend').innerHTML = ''; return; }
     $('#evGrid').style.display = '';
     const lines = evalLines(ev); const st = evStats(ev);
     $('#evHead').innerHTML = `<a class="back" href="#evaluations">← Évaluations</a>
       <div class="vhead"><div class="grow"><span class="eyebrow">${esc(ev.type || 'TP')}${ev.code ? ' · ' + esc(ev.code) : ''}</span><h1>${esc(ev.title)}</h1>
-      <div class="meta"><span>${esc(fmtDate(ev.date))}</span><span>${lines.length} ligne${lines.length > 1 ? 's' : ''} évaluée${lines.length > 1 ? 's' : ''}</span></div></div>
+      <div class="meta">${UNIFIED ? `<span>${poleChip(unitOf(ev))} ${esc(REF[unitOf(ev)].label)}</span>` : ''}<span>${esc(fmtDate(ev.date))}</span><span>${lines.length} ligne${lines.length > 1 ? 's' : ''} évaluée${lines.length > 1 ? 's' : ''}</span></div></div>
       <div class="actions">${canEditEval(ev) ? `<button class="btn" data-act="edit-eval" data-id="${esc(ev.id)}">Modifier</button>` : ''}${S.dl ? `<button class="btn" data-act="export-eval" data-id="${esc(ev.id)}">Exporter (.xlsx)</button>` : ''}${canEditEval(ev) ? `<button class="btn btn-danger" data-act="del-eval" data-id="${esc(ev.id)}">Supprimer</button>` : ''}</div></div>
       ${S.canWrite && !canEditEval(ev) ? `<p class="hint">Évaluation créée par ${esc(authorOf(ev) || "l'administrateur")} : vous pouvez positionner et noter les étudiants, mais pas la modifier ni la supprimer.</p>` : ''}`;
     $('#evStats').innerHTML = `<div class="card stat"><span>Évalués</span><b>${st.done} / ${st.total}</b></div>
@@ -574,9 +588,9 @@ VIEWS.etudiant = {
     if (!s){ $('#sfBody').innerHTML = `<a class="back" href="#etudiants">← Étudiants</a><div class="card empty"><h2>Étudiant introuvable</h2><p>Il a peut-être été supprimé, ou il appartient à une autre classe.</p></div>`; return; }
     const evs = sortedEvals('asc'); const avg = studentAvg(s.id); const acq = acquisition(s.id); const seuil = seuilLevel(); const si = LEVELS.indexOf(seuil);
     const usedCodes = usedComps();
-    const compRows = usedCodes.map(c => {
+    const compRows = usedCodes.map((c, i) => {
       const h = compHistory(s.id, c.code); const last = h.length ? h[h.length - 1].lv : null;
-      return `<tr><td class="stick"><b>${c.code}</b><br><span class="xs muted">${esc(c.short)}</span></td>
+      return (UNIFIED && (i === 0 || usedCodes[i - 1].unit !== c.unit) ? `<tr class="grouprow"><td colspan="4" class="pole-${c.unit}">${esc(REF[c.unit].label)}</td></tr>` : '') + `<tr><td class="stick"><b>${c.code}</b><br><span class="xs muted">${esc(c.short)}</span></td>
         <td>${h.length ? sparkSVG(h) : '<span class="muted small">Pas encore positionné</span>'}</td>
         <td><div class="timeline">${h.map(x => lvChip(x.lv, x.ev.title + ' — ' + fmtDate(x.ev.date))).join('')}</div></td>
         <td class="ctr">${lvChip(last)}</td></tr>`;
@@ -585,7 +599,7 @@ VIEWS.etudiant = {
     const usedSet = new Set(usedCodes.map(c => c.code));
     const actAvg = {};
     ACTS.forEach(a => { const vals = COMPS.filter(c => actOf(c) === a.code).map(lastOf).filter(Boolean).map(l => lvNum(l.lv)); actAvg[a.code] = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null; });
-    const groupsHtml = ACTS.map(a => `<div class="plist"><h3><span><b>${a.code}</b> ${esc(a.band)}</span>${actAvg[a.code] == null ? '' : lvChip(LEVELS[Math.round(actAvg[a.code]) - 1], 'Niveau moyen : ' + fmtNote(actAvg[a.code]) + ' sur 4')}</h3>
+    const groupsHtml = ACTS.map((a, i) => (UNIFIED && (i === 0 || ACTS[i - 1].unit !== a.unit) ? `<h3 class="polehead pole-${a.unit}">${esc(REF[a.unit].label)}</h3>` : '') + `<div class="plist"><h3><span><b>${a.code}</b> ${esc(a.band)}</span>${actAvg[a.code] == null ? '' : lvChip(LEVELS[Math.round(actAvg[a.code]) - 1], 'Niveau moyen : ' + fmtNote(actAvg[a.code]) + ' sur 4')}</h3>
       <p class="xs muted" style="margin:0 0 4px">${esc(a.name)}</p>
       ${COMPS.filter(c => actOf(c) === a.code).map(c => { const l = lastOf(c); return `<div class="plrow"><span><b>${c.code}</b>${esc(c.short)}</span>${l ? lvChip(l.lv, l.ev.title + ' — ' + fmtDate(l.ev.date)) : `<span class="xs muted">${usedSet.has(c.code) ? 'à positionner' : 'non évaluée'}</span>`}</div>`; }).join('')}</div>`).join('');
     const evRows = evs.slice().reverse().map(ev => {
@@ -599,7 +613,7 @@ VIEWS.etudiant = {
     $('#sfBody').innerHTML = `<a class="back" href="#etudiants">← Étudiants</a>
       <div class="vhead"><div class="grow"><span class="eyebrow">Fiche étudiant</span><h1>${esc(s.nom)} ${esc(s.prenom)}</h1><div class="meta"><span>${evs.filter(ev => resFor(ev.id, s.id)).length} évaluation(s) saisie(s)</span><span>Seuil d'acquisition : ${seuil}</span></div></div>
       <div class="actions"><div class="card stat"><span>Moyenne</span><b>${fmtNote(avg)}</b></div><div class="card stat" title="${esc(W.acqTitle.replace('{seuil}', seuil))}"><span>${esc(W.acquired)}</span><b>${acq.evaluated ? acq.acquired + ' / ' + acq.evaluated : '—'}</b></div></div></div>
-      <section class="card pad chartcard"><h2>Profil de compétences — ${UNIT} ${S.bloc}</h2><p class="hint">Les ${ACTS.length} ${W.acts} du ${UNIT.toLowerCase()} (${ACTS[0].code} à ${ACTS[ACTS.length - 1].code}) et leurs ${COMPS.length} ${W.comps}. Dernier positionnement de l'étudiant, comparé à la moyenne de la classe.</p>
+      <section class="card pad chartcard"><h2>Profil de compétences — ${esc(scopeLabel())}</h2><p class="hint">${UNIFIED ? `Les ${UNITS.length} pôles et leurs ${ACTS.length} ${W.acts} : chaque branche donne le niveau moyen de la compétence (dernier positionnement de chacun de ses critères), comparé à la moyenne de la classe.` : `Les ${ACTS.length} ${W.acts} du ${UNIT.toLowerCase()} (${ACTS[0].code} à ${ACTS[ACTS.length - 1].code}) et leurs ${COMPS.length} ${W.comps}. Dernier positionnement de l'étudiant, comparé à la moyenne de la classe.`}</p>
         ${usedCodes.length ? `<div class="profile-grid">
           <div class="radar-wrap"><div id="radar"></div>
             <div class="legend"><span><i class="sw sw-poly"></i>${esc(s.nom)} ${esc(s.prenom)}</span><span><i class="sw sw-line2"></i>Moyenne de la classe</span><span><i class="sw sw-zone"></i>Zone d'acquisition (${seuil} ou plus)</span><span>En gris : ${esc(W.notYet)}</span></div></div>
@@ -610,14 +624,44 @@ VIEWS.etudiant = {
       <div class="section"><h2>Progression par compétence</h2>${usedCodes.length ? `<div class="tablewrap"><table><thead><tr><th class="stick">Compétence</th><th>Évolution</th><th>Positionnements, du plus ancien au plus récent</th><th class="ctr">Dernier</th></tr></thead><tbody>${compRows}</tbody></table></div>` : '<p class="muted">Aucune compétence évaluée dans cette classe pour l\'instant.</p>'}</div>
       <div class="section"><h2>Évaluations</h2>${evs.length ? `<div class="tablewrap"><table><thead><tr><th>Date</th><th>Évaluation</th><th>Niveaux</th><th class="num">Note</th><th></th></tr></thead><tbody>${evRows}</tbody></table></div>` : '<p class="muted">Aucune évaluation dans cette classe.</p>'}</div>`;
     const rd = $('#radar');
-    if (rd) rd.innerHTML = radarSVG(rd.clientWidth, COMPS.map(c => { const l = lastOf(c); return {code:c.code, short:c.short, act:actOf(c), na:!usedSet.has(c.code), v:l ? lvNum(l.lv) : 0, lv:l && l.lv, title:l && l.ev.title, avg:classAvgLevel(c.code)}; }), lvNum(seuil), fullName(s), actAvg);
+    if (rd && UNIFIED){
+      const items = ACTS.map(a => {
+        const cs = COMPS.filter(c => actOf(c) === a.code);
+        const mine = cs.map(lastOf).filter(Boolean).map(l => lvNum(l.lv));
+        const v = avgOf(mine), cls = avgOf(cs.map(c => classAvgLevel(c.code)).filter(x => x != null));
+        return {code:a.code, short:a.band, act:poleCode(a.unit), na:!cs.some(c => usedSet.has(c.code)), v:v || 0, lv:lvOfAvg(v), title:v ? 'moyenne de ' + mine.length + ' critère' + (mine.length > 1 ? 's' : '') : '', avg:cls};
+      });
+      const poleAvg = {};
+      UNITS.forEach(u => { poleAvg[poleCode(u)] = avgOf(COMPS.filter(c => c.unit === u).map(lastOf).filter(Boolean).map(l => lvNum(l.lv))); });
+      rd.innerHTML = radarSVG(rd.clientWidth, items, lvNum(seuil), fullName(s), poleAvg);
+    }
+    else if (rd) rd.innerHTML = radarSVG(rd.clientWidth, COMPS.map(c => { const l = lastOf(c); return {code:c.code, short:c.short, act:actOf(c), na:!usedSet.has(c.code), v:l ? lvNum(l.lv) : 0, lv:l && l.lv, title:l && l.ev.title, avg:classAvgLevel(c.code)}; }), lvNum(seuil), fullName(s), actAvg);
   }
 };
+
+/* --- Synthèse BTS : les 4 pôles et leurs compétences dans un même tableau --- */
+function synthesePoles(studs, used){
+  // Toujours les 4 pôles et leurs 11 compétences (les rubriques transversales comptent dans la moyenne du pôle).
+  const acts = ACTS.filter(a => !/^T/.test(a.code));
+  const poles = UNITS;
+  const lastLv = (sid, c) => { const h = compHistory(sid, c.code); return h.length ? lvNum(h[h.length - 1].lv) : null; };
+  const poleVal = (sid, u) => avgOf(used.filter(c => c.unit === u).map(c => lastLv(sid, c)).filter(x => x != null));
+  const actVal = (sid, a) => avgOf(used.filter(c => actOf(c) === a.code).map(c => lastLv(sid, c)).filter(x => x != null));
+  const cell = (v, tip, strong) => `<td class="ctr${strong ? ' polecell' : ''}">${v == null ? '<span class="lv lv-none">—</span>' : lvChip(lvOfAvg(v), tip + ' : ' + fmtNote(v) + ' sur 4')}</td>`;
+  const head1 = `<tr><th class="stick" rowspan="2">Étudiant</th>${poles.map(u => `<th colspan="${1 + acts.filter(a => a.unit === u).length}" class="polehead pole-${u}">${esc(REF[u].label)}</th>`).join('')}</tr>`;
+  const head2 = `<tr>${poles.map(u => `<th class="ctr polecell" title="Niveau moyen du pôle">Pôle</th>` + acts.filter(a => a.unit === u).map(a => `<th class="ctr" title="${esc(a.name)}">${esc(a.code)}<br><span style="font-weight:400">${esc(a.band)}</span></th>`).join('')).join('')}</tr>`;
+  const rows = studs.map(s => `<tr><td class="stick"><a class="namebtn" href="#etudiant-${esc(s.id)}" style="text-decoration:none">${esc(s.nom)} ${esc(s.prenom)}</a></td>${poles.map(u => cell(poleVal(s.id, u), REF[u].label, true) + acts.filter(a => a.unit === u).map(a => cell(actVal(s.id, a), a.code + ' ' + a.name)).join('')).join('')}</tr>`).join('');
+  const classAvg = f => avgOf(studs.map(f).filter(x => x != null));
+  const foot = `<tr><td class="stick">Moyenne de la classe</td>${poles.map(u => cell(classAvg(s => poleVal(s.id, u)), 'Classe', true) + acts.filter(a => a.unit === u).map(a => cell(classAvg(s => actVal(s.id, a)), 'Classe')).join('')).join('')}</tr>`;
+  return `<div class="section" style="margin-top:0"><h2>Synthèse par pôle et par compétence</h2>
+    <p class="hint">Pour chaque étudiant : niveau moyen de chaque pôle (tous ses critères, hygiène-sécurité comprise) et de chacune des 11 compétences, calculé sur le dernier positionnement de chaque critère. « — » : pas encore évalué. Survolez un niveau pour voir la valeur exacte (1 = MI, 4 = TBM).</p>
+    <div class="tablewrap"><table class="poletable"><thead>${head1}${head2}</thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div></div>`;
+}
 
 /* --- Vue : synthèse de classe --- */
 VIEWS.synthese = {
   build(){
-    return `<div class="vhead"><div class="grow"><h1>Synthèse de la classe — ${UNIT} ${S.bloc}</h1><div class="meta" id="syMeta"></div></div><div class="actions">${S.dl ? `<button class="btn" data-act="export-class">Exporter la classe (.xlsx)</button>` : ''}</div></div><div id="syBody"></div>`;
+    return `<div class="vhead"><div class="grow"><h1>Synthèse de la classe — ${esc(scopeLabel())}</h1><div class="meta" id="syMeta"></div></div><div class="actions">${S.dl ? `<button class="btn" data-act="export-class">Exporter la classe (.xlsx)</button>` : ''}</div></div><div id="syBody"></div>`;
   },
   update(){
     const studs = sortedStudents(); const evs = sortedEvals('asc');
@@ -629,14 +673,25 @@ VIEWS.synthese = {
     const avgAll = (() => { const ns = studs.map(s => studentAvg(s.id)).filter(n => n != null); return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null; })();
     const noteRows = studs.map(s => `<tr><td class="stick">${esc(s.nom)} ${esc(s.prenom)}</td>${evs.map(ev => { const r = resFor(ev.id, s.id); return `<td class="num">${r && r.absent ? 'ABS' : fmtNote(finalNote(ev, r))}</td>`; }).join('')}<td class="num"><b>${fmtNote(studentAvg(s.id))}</b></td></tr>`).join('');
     const evAvgs = evs.map(ev => `<td class="num">${fmtNote(evStats(ev).avg)}</td>`).join('');
-    $('#syBody').innerHTML = `<div class="section" style="margin-top:0"><h2>Dernier niveau par compétence</h2>
-      <div class="tablewrap"><table><thead><tr><th class="stick">Étudiant</th>${used.map(c => `<th class="ctr" title="${esc(c.short)}">${c.code}<br><span style="font-weight:400">${esc(c.short)}</span></th>`).join('')}<th>Acquisition</th><th class="num">Moyenne</th></tr></thead>
+    const poleTable = UNIFIED ? synthesePoles(studs, used) : '';
+    const critHead = UNIFIED ? `<tr><th class="stick"></th>${UNITS.map(u => { const n = used.filter(c => c.unit === u).length; return n ? `<th colspan="${n}" class="polehead pole-${u}">${esc(REF[u].label)}</th>` : ''; }).join('')}<th></th><th></th></tr>` : '';
+    $('#syBody').innerHTML = poleTable + `<div class="section"${UNIFIED ? '' : ' style="margin-top:0"'}><h2>Dernier niveau par ${UNIFIED ? 'critère' : 'compétence'}</h2>
+      <div class="tablewrap"><table><thead>${critHead}<tr><th class="stick">Étudiant</th>${used.map(c => `<th class="ctr" title="${esc(c.short)}">${c.code}<br><span style="font-weight:400">${esc(c.short)}</span></th>`).join('')}<th>Acquisition</th><th class="num">Moyenne</th></tr></thead>
       <tbody>${lastRows}</tbody><tfoot><tr><td class="stick">Répartition</td>${distRow}<td></td><td class="num">${fmtNote(avgAll)}</td></tr></tfoot></table></div>${acqLegend()}</div>
       <div class="section"><h2>Notes par évaluation</h2>
-      <div class="tablewrap"><table><thead><tr><th class="stick">Étudiant</th>${evs.map(ev => `<th class="num" title="${esc(ev.title)}">${esc(String(ev.code || ev.title).slice(0, 22))}<br><span style="font-weight:400">${esc(fmtDate(ev.date))}</span></th>`).join('')}<th class="num">Moyenne</th></tr></thead>
+      <div class="tablewrap"><table><thead><tr><th class="stick">Étudiant</th>${evs.map(ev => `<th class="num" title="${esc(ev.title)}">${esc(String(ev.code || ev.title).slice(0, 22))}<br><span style="font-weight:400">${UNIFIED ? poleCode(unitOf(ev)) + ' · ' : ''}${esc(fmtDate(ev.date))}</span></th>`).join('')}<th class="num">Moyenne</th></tr></thead>
       <tbody>${noteRows}</tbody><tfoot><tr><td class="stick">Moyenne de classe</td>${evAvgs}<td class="num">${fmtNote(avgAll)}</td></tr></tfoot></table></div></div>`;
   }
 };
+
+function refList(acts, comps){
+  return `<div class="reflist">${acts.map(a => `<h3 class="refgroup"><b>${esc(a.code)}</b> ${esc(a.name)}</h3>` + comps.filter(c => actOf(c) === a.code).map(c => `<div class="card pad ref"><b>${esc(c.code)}</b> — ${esc(c.full)}<p><b style="color:var(--ink-2)">${esc(W.crit)} :</b> ${esc(c.crit)}</p></div>`).join('')).join('')}</div>`;
+}
+function refHtml(){
+  if (!UNIFIED) return `<div class="section"><h2>Référentiel — ${UNIT} ${S.bloc}</h2><p class="hint">${esc(REF[S.bloc].title)} (${esc(CFG.refSource)}). Évaluation : ${esc(REF[S.bloc].modal)}</p>${refList(ACTS, COMPS)}</div>`;
+  return `<div class="section"><h2>Référentiel — ${esc(scopeLabel())}</h2><p class="hint">${esc(CFG.refSource)}.</p>` +
+    UNITS.map(u => `<h3 class="polehead pole-${u}">${esc(REF[u].label)}</h3><p class="hint">${esc(REF[u].title)}. Évaluation : ${esc(REF[u].modal)}</p>${refList(REF[u].acts, REF[u].comps)}`).join('') + `</div>`;
+}
 
 /* --- Vue : réglages --- */
 VIEWS.reglages = {
@@ -660,8 +715,7 @@ VIEWS.reglages = {
         <p class="small muted" style="max-width:78ch">Chaque saisie est enregistrée automatiquement dans la base de données sécurisée, hébergée en France : vous retrouvez vos évaluations sur tous vos appareils, après connexion. Le bouton « Enregistrer », en haut de page, vérifie que tout est bien envoyé. Un historique des modifications est conservé ; gardez aussi, de temps en temps, une copie de sécurité dans vos dossiers.</p>
         <div class="formactions" style="justify-content:flex-start">${w ? `<button type="button" class="btn btn-primary" data-act="save-now">Enregistrer maintenant</button>` : ''}<button type="button" class="btn" data-local="download">Télécharger une copie de sécurité (.json)</button>${w ? `<button type="button" class="btn" data-local="open">Restaurer une sauvegarde…</button>` : ''}</div>
         ${CFG.importHint ? `<p class="hint" style="margin-top:10px">${esc(CFG.importHint)}</p>` : ''}</div>
-      <div class="section"><h2>Référentiel — ${UNIT} ${S.bloc}</h2><p class="hint">${esc(REF[S.bloc].title)} (${esc(CFG.refSource)}). Évaluation : ${esc(REF[S.bloc].modal)}</p>
-        <div class="reflist">${ACTS.map(a => `<h3 class="refgroup"><b>${esc(a.code)}</b> ${esc(a.name)}</h3>` + COMPS.filter(c => actOf(c) === a.code).map(c => `<div class="card pad ref"><b>${esc(c.code)}</b> — ${esc(c.full)}<p><b style="color:var(--ink-2)">${esc(W.crit)} :</b> ${esc(c.crit)}</p></div>`).join('')).join('')}</div></div>
+      ${refHtml()}
       ${CFG.levelDesc ? `<div class="section"><h2>Échelle de positionnement</h2><div class="reflist">${LEVELS.map(k => `<div class="card pad ref">${lvChip(k)} <b>${LEVEL_NAME[k]}</b><p>${esc(LEVEL_DESC[k])}</p></div>`).join('')}</div></div>` : ''}`;
   },
   update(){
@@ -776,10 +830,8 @@ function openEvalEditor(ev){
     <div class="row"><label class="fld"><span>Code (cartouche)</span><input id="fCode" type="text" value="${esc(ev.code || '')}" placeholder="${esc(CFG.codePlaceholder(S.bloc))}"></label>
       <label class="fld" style="flex:0 1 170px"><span>Date</span><input id="fDate" type="date" value="${esc(ev.date || '')}"></label>
       <label class="fld" style="flex:0 1 150px"><span>Type</span><select id="fType" class="inp">${TYPES.map(t => `<option${t === ev.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
-    <fieldset><legend>Compétences évaluées</legend><p class="hint">${esc(CFG.compHint)}</p><p class="small" id="fFm" style="color:var(--danger)" hidden></p>
-      ${COMPS.map((c, i) => { const x = sel[c.code]; const g = actOf(c); const head = (i === 0 || actOf(COMPS[i - 1]) !== g) && ACT[g] ? `<div class="compgroup"><b>${esc(g)}</b> ${esc(ACT[g].name)}</div>` : ''; return head + `<div class="comprow"><label class="chk"><input type="checkbox" data-code="${c.code}"${x ? ' checked' : ''}><span><b>${c.code}</b> ${esc(c.short)}</span></label>
-        <select class="inp" data-status="${c.code}" aria-label="Statut de ${c.code}">${STATUSES.map(st => `<option value="${esc(st)}"${(x ? (x.status || '') : CFG.defaultStatus) === st ? ' selected' : ''}>${st || '(sans statut)'}</option>`).join('')}</select>
-        <label class="w">Coef. <input type="number" min="0" max="10" step="0.5" value="${x ? num(x.weight, 1) : 1}" data-weight="${c.code}" aria-label="Coefficient ${c.code}"></label></div>`; }).join('')}</fieldset>
+    ${UNIFIED ? polePicker(ev, sel, isNew) : `<fieldset><legend>Compétences évaluées</legend><p class="hint">${esc(CFG.compHint)}</p><p class="small" id="fFm" style="color:var(--danger)" hidden></p>
+      ${compList(COMPS, sel, 0)}</fieldset>`}
     <fieldset><legend>Objectif transverse (facultatif)</legend>
       <div class="row"><label class="fld"><span>Intitulé</span><input id="fTrLabel" type="text" value="${esc(ev.transverse && ev.transverse.label || '')}" placeholder="${esc(CFG.trPlaceholder)}"></label>
       <label class="fld" style="flex:0 1 100px"><span>Coef.</span><input id="fTrW" type="number" min="0" max="10" step="0.5" value="${ev.transverse ? num(ev.transverse.weight, 1) : 1}"></label></div>
@@ -787,6 +839,37 @@ function openEvalEditor(ev){
     <p class="small" id="fErr" style="color:var(--danger)" hidden></p>
     <div class="formactions"><button class="btn" type="button" data-act="modal-cancel">Annuler</button><button class="btn btn-primary" type="submit">${isNew ? 'Créer l\'évaluation' : 'Enregistrer'}</button></div></form>`);
   $('#fTitle', m).focus(); checkFm();
+}
+function compRow(c, x, dom){
+  const def = UNIFIED && dom && c.unit !== dom ? 'Mobilisée' : CFG.defaultStatus;
+  return `<div class="comprow"><label class="chk"><input type="checkbox" data-code="${c.code}"${x ? ' checked' : ''}><span><b>${c.code}</b> ${esc(c.short)}</span></label>
+    <select class="inp" data-status="${c.code}" aria-label="Statut de ${c.code}">${STATUSES.map(st => `<option value="${esc(st)}"${(x ? (x.status || '') : def) === st ? ' selected' : ''}>${st || '(sans statut)'}</option>`).join('')}</select>
+    <label class="w">Coef. <input type="number" min="0" max="10" step="0.5" value="${x ? num(x.weight, 1) : 1}" data-weight="${c.code}" aria-label="Coefficient ${c.code}"></label></div>`;
+}
+function compList(list, sel, dom){
+  return list.map((c, i) => { const g = actOf(c); const head = (i === 0 || actOf(list[i - 1]) !== g) && ACT[g] ? `<div class="compgroup"><b>${esc(g)}</b> ${esc(ACT[g].name)}</div>` : ''; return head + compRow(c, sel[c.code], dom); }).join('');
+}
+/* BTS : pôle dominant demandé d'abord ; ses critères s'ouvrent en premier, les autres pôles restent disponibles (mobilisés). */
+function polePicker(ev, sel, isNew){
+  const dom = REF[ev.bloc] ? Number(ev.bloc) : 0;
+  const order = dom ? [dom, ...UNITS.filter(u => u !== dom)] : UNITS;
+  return `<label class="fld domfld"><span>Pôle dominant évalué</span><select id="fDom" class="inp" required>
+      <option value="">— Choisir le pôle dominant —</option>${UNITS.map(u => `<option value="${u}"${u === dom ? ' selected' : ''}>${esc(REF[u].label)}</option>`).join('')}</select></label>
+    <fieldset id="fComps"><legend>Critères évalués</legend><p class="hint">${esc(CFG.compHint)}</p><p class="small" id="fFm" style="color:var(--danger)" hidden></p>
+      ${order.map(u => { const n = REF[u].comps.filter(c => sel[c.code]).length;
+        return `<details class="polegroup pole-${u}" data-unit="${u}"${u === dom || n ? ' open' : ''}><summary><b>${poleCode(u)}</b> ${esc(poleShort(u))}<span class="dombadge"${u === dom ? '' : ' hidden'}>pôle dominant</span><span class="pgcount">${n ? n + ' coché' + (n > 1 ? 's' : '') : ''}</span></summary>${compList(REF[u].comps, sel, dom)}</details>`; }).join('')}</fieldset>`;
+}
+function onDomChange(){
+  const m = $('#modal'); const dom = Number($('#fDom', m).value); const fs = $('#fComps', m); if (!fs) return;
+  m.querySelectorAll('details.polegroup').forEach(d => {
+    const u = Number(d.dataset.unit), isDom = u === dom;
+    d.querySelector('.dombadge').hidden = !isDom;
+    if (isDom){ d.open = true; fs.insertBefore(d, fs.querySelector('details.polegroup')); }
+    d.querySelectorAll('[data-code]').forEach(i => { if (!i.checked) m.querySelector(`[data-status="${i.dataset.code}"]`).value = !dom || isDom ? CFG.defaultStatus : 'Mobilisée'; });
+  });
+}
+function updatePoleCounts(){
+  $('#modal').querySelectorAll('details.polegroup').forEach(d => { const n = d.querySelectorAll('[data-code]:checked').length; d.querySelector('.pgcount').textContent = n ? n + ' coché' + (n > 1 ? 's' : '') : ''; });
 }
 function checkFm(){
   const m = $('#modal'); const el = m && $('#fFm', m); if (!el || !CFG.fmMax) return;
@@ -802,9 +885,12 @@ async function submitEval(form){
   const err = $('#fErr', m);
   if (!title){ err.textContent = 'Donnez un titre à l\'évaluation.'; err.hidden = false; return; }
   if (!comps.length && !trLabel){ err.textContent = 'Cochez au moins une compétence, ou renseignez un objectif transverse.'; err.hidden = false; return; }
+  const dom = UNIFIED ? Number($('#fDom', m).value) : 0;
+  if (UNIFIED && !REF[dom]){ err.textContent = 'Choisissez le pôle dominant évalué.'; err.hidden = false; $('#fDom', m).focus(); return; }
+  if (UNIFIED && !comps.some(c => COMP[c.code] && COMP[c.code].unit === dom)){ err.textContent = `Cochez au moins un critère du pôle dominant (${poleCode(dom)} · ${poleShort(dom)}) : c'est lui qui est positionné.`; err.hidden = false; return; }
   const id = form.dataset.id || newId(); const old = evById(id);
   if (old && !canEditEval(old)){ closeModal(); toast("Cette évaluation a été créée par un autre formateur : vous ne pouvez pas la modifier."); return; }
-  const data = {classId:old ? old.classId : S.classId, bloc:old ? unitOf(old) : S.bloc, title, code:$('#fCode', m).value.trim(), date:$('#fDate', m).value || today(), type:$('#fType', m).value,
+  const data = {classId:old ? old.classId : S.classId, bloc:UNIFIED ? dom : (old ? unitOf(old) : S.bloc), title, code:$('#fCode', m).value.trim(), date:$('#fDate', m).value || today(), type:$('#fType', m).value,
     comps, transverse:trLabel ? {label:trLabel, weight:num($('#fTrW', m).value, 1)} : null, createdBy:old ? old.createdBy : S.me, createdAt:old ? (old.createdAt || new Date().toISOString()) : new Date().toISOString(), ...stamp()};
   closeModal();
   S.evals = S.evals.filter(e => e.id !== id).concat([{id, ...data}]);
@@ -883,7 +969,7 @@ function evalSheet(X, ev){
 }
 function legendSheet(X){
   const p = points();
-  const rows = [['Niveau', 'Signification', 'Points'], ...LEVELS.map(k => [k, LEVEL_NAME[k], p[k]]), [], ['Code', 'Compétence (' + UNIT + ' ' + S.bloc + ')', W.crit], ...COMPS.map(c => [c.code, c.full, c.crit])];
+  const rows = [['Niveau', 'Signification', 'Points'], ...LEVELS.map(k => [k, LEVEL_NAME[k], p[k]]), [], ['Code', 'Compétence (' + scopeLabel() + ')', W.crit], ...COMPS.map(c => [c.code, c.full, c.crit])];
   const ws = X.utils.aoa_to_sheet(rows); ws['!cols'] = [{wch:10}, {wch:70}, {wch:70}]; return ws;
 }
 async function saveWorkbook(wb, filename){
@@ -915,7 +1001,7 @@ async function exportClass(){
   X.utils.book_append_sheet(wb, w2, sheetName('Compétences', used));
   evs.forEach(ev => X.utils.book_append_sheet(wb, evalSheet(X, ev), sheetName(ev.code || ev.title, used)));
   X.utils.book_append_sheet(wb, legendSheet(X), sheetName('Légende', used));
-  await saveWorkbook(wb, fileSafe(cl.name) + '_' + CFG.unitFile + S.bloc + '_evaluations.xlsx');
+  await saveWorkbook(wb, fileSafe(cl.name) + '_' + (UNIFIED ? CFG.unitFile + 's' : CFG.unitFile + S.bloc) + '_evaluations.xlsx');
 }
 
 /* ---------- Classes ---------- */
@@ -1022,7 +1108,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.closest && t.closest('form[data-form="eval"]')) checkFm();
+  if (t.closest && t.closest('form[data-form="eval"]')){ if (t.id === 'fDom') onDomChange(); if (UNIFIED) updatePoleCounts(); checkFm(); }
   if (t.id === 'classSel'){ if (t.value === '__new'){ if (S.canWrite && S.admin) openNewClass(); else renderClassSelect(); } else { setClass(t.value); location.hash = '#evaluations'; } return; }
   if (!S.canWrite) return;
   if (t.classList.contains('lvsel')){ const ev = evById(t.dataset.ev); if (ev) saveResult(ev, t.dataset.s, {levels:{[t.dataset.k]: t.value || null}}); return; }

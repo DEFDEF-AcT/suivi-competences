@@ -79,14 +79,16 @@ const COMPS4 = [
 ];
 
 const REF = {
-  1:{label:'Pôle 1 · Diagnostic des systèmes des véhicules', title:'Réaliser le diagnostic des systèmes des véhicules (bloc 1, unité U5)', modal:"E5, épreuve ponctuelle orale pour les scolaires : 20 min d'exposé et 30 min d'entretien, sur un projet de 60 h · coefficient 8.", comps:COMPS1, acts:ACTS1},
-  2:{label:'Pôle 2 · Relation clientèle et commercialisation', title:"Assurer la relation clientèle et la commercialisation des produits et services de l'après-vente des véhicules (bloc 2, unité U6)", modal:"E6, épreuve ponctuelle orale pour les scolaires : 10 min de présentation et 20 min d'entretien, sur un dossier de deux situations professionnelles issues des stages · coefficient 4.", comps:COMPS2, acts:ACTS2},
-  3:{label:'Pôle 3 · Organisation des activités de maintenance', title:'Organiser les activités de maintenance des véhicules (bloc 3, unité U7)', modal:'E7, contrôle en cours de formation · coefficient 4.', comps:COMPS3, acts:ACTS3},
-  4:{label:'Pôle 4 · Maintenance corrective des véhicules', title:'Réaliser la maintenance corrective des véhicules (bloc 4, unité U8)', modal:'E8, contrôle en cours de formation · coefficient 4.', comps:COMPS4, acts:ACTS4}
+  1:{short:'Diagnostic', label:'Pôle 1 · Diagnostic des systèmes des véhicules', title:'Réaliser le diagnostic des systèmes des véhicules (bloc 1, unité U5)', modal:"E5, épreuve ponctuelle orale pour les scolaires : 20 min d'exposé et 30 min d'entretien, sur un projet de 60 h · coefficient 8.", comps:COMPS1, acts:ACTS1},
+  2:{short:'Relation client', label:'Pôle 2 · Relation clientèle et commercialisation', title:"Assurer la relation clientèle et la commercialisation des produits et services de l'après-vente des véhicules (bloc 2, unité U6)", modal:"E6, épreuve ponctuelle orale pour les scolaires : 10 min de présentation et 20 min d'entretien, sur un dossier de deux situations professionnelles issues des stages · coefficient 4.", comps:COMPS2, acts:ACTS2},
+  3:{short:'Organisation', label:'Pôle 3 · Organisation des activités de maintenance', title:'Organiser les activités de maintenance des véhicules (bloc 3, unité U7)', modal:'E7, contrôle en cours de formation · coefficient 4.', comps:COMPS3, acts:ACTS3},
+  4:{short:'Maintenance corrective', label:'Pôle 4 · Maintenance corrective des véhicules', title:'Réaliser la maintenance corrective des véhicules (bloc 4, unité U8)', modal:'E8, contrôle en cours de formation · coefficient 4.', comps:COMPS4, acts:ACTS4}
 };
 
 window.EVAL_CONFIG = {
   app:'bts', name:'Évaluations BTS MV', unitLabel:'Pôle', unitMark:'P', unitFile:'pole', defaultUnit:1,
+  // Pôles non dissociés : toutes les évaluations ensemble, pôle dominant choisi à la création.
+  unified:true, scopeLabel:'4 pôles', unifiedMark:'MV', unifiedSub:'Pôles 1 à 4 · référentiel 2027',
   ref:REF,
   refSource:"référentiel BTS Maintenance des véhicules 2027, arrêté du 10 décembre 2025 ; une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Le bloc transversal et le découpage de C1.3 en trois lignes sont des choix de l'équipe",
   words:{acts:'compétences', comp:'critère', comps:'critères', crit:'Indicateurs',
@@ -101,7 +103,7 @@ window.EVAL_CONFIG = {
   defaultClassName:'BTS MV 1 — 2026-2027', classExamples:'BTS MV 1, BTS MV 2…', classPlaceholder:'BTS MV 2 — 2026-2027',
   evalTitlePlaceholder:'TP — Diagnostic du circuit de charge', codePlaceholder:u => 'M2_P' + u + '_TP1',
   trPlaceholder:'Posture : justifier chaque relevé par la valeur constructeur',
-  compHint:"Au plus 3 compétences fortement mobilisées par activité (règle de l'équipe). Une ligne « Abordée » est positionnée mais ne compte pas dans la note : c'est une évaluation diagnostic.",
+  compHint:"Les critères du pôle dominant sont positionnés ; ceux des autres pôles peuvent être mobilisés. Au plus 3 compétences fortement mobilisées par activité (règle de l'équipe). Une ligne « Abordée » est positionnée mais ne compte pas dans la note : c'est une évaluation diagnostic.",
   levelDesc:{
     MI:"L'étudiant ne prend pas part à l'activité avec sérieux. Il ne prend pas en compte les conseils qui lui sont portés, ne veut pas reproduire les gestes et postures de l'enseignant. La connaissance du système n'est absolument pas évoquée.",
     MF:"Avec de l'aide, l'étudiant commet des erreurs importantes. Prend difficilement part à l'activité. Ne se saisit pas complètement des aides qui lui sont données. Ne respecte pas les procédures correctement. Vague connaissance du fonctionnement du système.",

@@ -5,7 +5,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 | Partie | Contenu |
 |---|---|
 | **Évaluations ISMI** | Blocs 1 et 3 (référentiel GIP-FCIP de Toulouse) : grilles MI à TBM, fiche de saisie par étudiant, note indicative, profil de compétences, synthèse de classe, export Excel. Reprise de la première mouture `Evaluations_ISMI.html`. |
-| **Évaluations BTS MV** | Même fonctionnement, pôles 1 à 4 du référentiel 2027 (arrêté du 10 décembre 2025). Une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Statuts Abordée / Mobilisée / Fortement mobilisée ; alerte au-delà de 3 compétences FM par activité. |
+| **Évaluations BTS MV** | Même moteur, référentiel 2027 (arrêté du 10 décembre 2025). Les 4 pôles ne sont pas dissociés : chaque évaluation indique son **pôle dominant** (demandé à la création ; ses critères sont positionnés, ceux des autres pôles peuvent être mobilisés), la synthèse et la fiche étudiant présentent les 4 pôles et leurs 11 compétences ensemble. Une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Statuts Abordée / Mobilisée / Fortement mobilisée ; alerte au-delà de 3 compétences FM par activité. |
 | **Habilitations PRE-VE** | L'interface `PRE-VE_Gestion_Formation…html`, **sans aucune modification**, avec ses données enregistrées en ligne. |
 
 ## Sécurité
