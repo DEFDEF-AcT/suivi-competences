@@ -43,16 +43,38 @@
   </div>
 </section>
 
+<!-- Premier mot de passe (compte créé par l'administrateur) -->
+<section class="login" id="vPwd" hidden>
+  <div class="card">
+    <h1>Choisissez votre mot de passe</h1>
+    <p class="sub">Votre compte a été créé avec un mot de passe provisoire. Remplacez-le par un mot de passe personnel, que vous seul connaissez.</p>
+    <form id="fFirst" class="stack" novalidate>
+      <label class="fld"><span>Nouveau mot de passe (12 caractères au moins, avec lettres, chiffres et symbole)</span><input id="f1" type="password" autocomplete="new-password" minlength="12"></label>
+      <label class="fld"><span>Confirmation</span><input id="f2" type="password" autocomplete="new-password" minlength="12"></label>
+      <div class="msg err" id="firstMsg" hidden></div>
+      <button class="btn btn-primary" type="submit">Enregistrer et continuer</button>
+    </form>
+  </div>
+</section>
+
 <!-- Accueil -->
 <main class="hub" id="vHub" hidden>
   <div class="hubhead">
     <div class="grow"><span class="eyebrow" id="hubEtab"></span><h1>Bonjour <span id="hubName"></span></h1></div>
   </div>
   <div class="tiles">
-    <a class="card tile" href="ismi.html"><span class="eyebrow">Bac+3</span><h2>Évaluations ISMI</h2><p>Blocs 1 et 3 : positionnement MI à TBM, profil de compétences, synthèse de classe, export Excel.</p><span class="stat-line" id="stIsmi">…</span><span class="go">Ouvrir →</span></a>
-    <a class="card tile t-bts" href="bts.html"><span class="eyebrow">BTS Maintenance des véhicules</span><h2>Évaluations BTS MV</h2><p>Pôles 1 à 4 : critères du référentiel 2027, statuts A / M / FM, même fonctionnement que l'ISMI.</p><span class="stat-line" id="stBts">…</span><span class="go">Ouvrir →</span></a>
-    <a class="card tile t-pre" href="pre.html"><span class="eyebrow">NF C 18-550 · OGELI</span><h2>Habilitations PRE-VE</h2><p>L'interface de gestion des habilitations, à l'identique, avec ses données enregistrées en ligne.</p><span class="stat-line" id="stPre">…</span><span class="go">Ouvrir →</span></a>
+    <a class="card tile" href="ismi.html" id="tIsmi" hidden><span class="eyebrow">Bac+3</span><h2>Évaluations ISMI</h2><p>Blocs 1 et 3 : positionnement MI à TBM, profil de compétences, synthèse de classe, export Excel.</p><span class="stat-line" id="stIsmi">…</span><span class="go">Ouvrir →</span></a>
+    <a class="card tile t-bts" href="bts.html" id="tBts" hidden><span class="eyebrow">BTS Maintenance des véhicules</span><h2>Évaluations BTS MV</h2><p>Pôles 1 à 4 : critères du référentiel 2027, statuts A / M / FM, même fonctionnement que l'ISMI.</p><span class="stat-line" id="stBts">…</span><span class="go">Ouvrir →</span></a>
+    <a class="card tile t-pre" href="pre.html" id="tPre" hidden><span class="eyebrow">NF C 18-550 · OGELI</span><h2>Habilitations PRE-VE</h2><p>L'interface de gestion des habilitations, à l'identique, avec ses données enregistrées en ligne.</p><span class="stat-line" id="stPre">…</span><span class="go">Ouvrir →</span></a>
   </div>
+
+  <p class="msg" id="noAccess" hidden>Aucune partie ne vous est encore attribuée. Demandez à l'administrateur de vous donner accès.</p>
+
+  <section class="card teamcard" id="teamCard" hidden>
+    <div class="teamhead"><div><h2>Équipe</h2>
+      <p>Chaque collègue ne voit que les parties et les classes que vous lui attribuez. Il crée ses évaluations et en garde la main entière ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres. Classes, étudiants et barème restent gérés par vous.</p></div></div>
+    <div id="teamBox"><p>Chargement…</p></div>
+  </section>
 
   <div class="panels">
     <section class="card">

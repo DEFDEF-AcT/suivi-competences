@@ -53,7 +53,7 @@ const cmpFr = (a, b) => String(a).localeCompare(String(b), 'fr', {sensitivity:'b
 
 /* ---------- État ---------- */
 const S = {
-  phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true,
+  phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true, admin:true, names:{},
   classes:[], classesLoaded:false, classId:null, config:{points:{...DEFAULT_POINTS}},
   students:[], evals:[], results:new Map(), loaded:{students:false, evals:false, results:false},
   unsubClass:[], route:{view:'evaluations', id:null}, builtKey:'', panel:null, editing:null, slow:false,
@@ -65,6 +65,10 @@ const points = () => ({...DEFAULT_POINTS, ...(S.config.points || {})});
 const evById = id => S.evals.find(e => e.id === id);
 const stById = id => S.students.find(s => s.id === id);
 const resFor = (evId, sid) => S.results.get(evId + '_' + sid);
+/* Droits : l'administrateur gère tout ; un collègue modifie et supprime seulement ses évaluations,
+   et positionne les étudiants sur toutes les évaluations de ses classes. La base applique les mêmes règles. */
+const canEditEval = ev => !!ev && S.canWrite && (S.admin || ev.createdBy === S.me);
+const authorOf = ev => ev && ev.createdBy ? (ev.createdBy === S.me ? 'vous' : (S.names[ev.createdBy] || 'un collègue')) : '';
 const sortedStudents = () => S.students.slice().sort((a, b) => cmpFr(a.nom, b.nom) || cmpFr(a.prenom, b.prenom));
 const blocEvals = () => S.evals.filter(e => unitOf(e) === S.bloc);
 const sortedEvals = (dir = 'desc') => blocEvals().sort((a, b) => {
@@ -256,7 +260,7 @@ function queue(path, fn){
   queues.set(path, next);
   S.pending++; renderSaveState();
   next.then(() => { S.lastSaved = new Date(); })
-    .catch(e => { S.failed.push({path, fn}); onWriteError(e); })
+    .catch(e => { if (!(e && e.code === 'not_granted')) S.failed.push({path, fn}); onWriteError(e); })
     .finally(() => { S.pending--; if (queues.get(path) === next) queues.delete(path); renderSaveState(); });
   return next;
 }
@@ -311,7 +315,7 @@ async function retry(fn){
 function onWriteError(e){
   console.error(e);
   const c = e && e.code;
-  if (c === 'invalid_argument' || c === 'not_granted'){ S.canWrite = false; S.builtKey = ''; render(); toast("Enregistrement refusé : ce compte peut consulter mais pas modifier ces évaluations."); }
+  if (c === 'invalid_argument' || c === 'not_granted'){ toast("Action refusée : votre compte n'a pas ce droit. L'affichage est remis à jour."); if (S.db && S.db.reload) S.db.reload(); }
   else if (c === 'quota_exceeded') toast("Stockage plein : supprimez d'anciennes évaluations pour pouvoir en enregistrer de nouvelles.");
   else if (c === 'resource_exhausted') toast("Trop d'enregistrements en même temps : attendez quelques secondes puis recommencez.");
   else toast("Enregistrement impossible pour l'instant. Vérifiez la connexion puis recommencez.");
@@ -415,7 +419,7 @@ function renderClassSelect(){
   if (!S.db || !S.classesLoaded && !S.classes.length){ sel.disabled = true; return; }
   sel.disabled = false;
   sel.innerHTML = S.classes.map(c => `<option value="${esc(c.id)}"${c.id === S.classId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
-    + (S.canWrite ? `<option value="__new">+ Nouvelle classe…</option>` : '');
+    + (S.canWrite && S.admin ? `<option value="__new">+ Nouvelle classe…</option>` : '');
   if (!S.classes.length) sel.value = '__new';
 }
 function renderTabs(){
@@ -427,7 +431,7 @@ function renderBanner(){
   if (S.slow) parts.push(`<span>Les données ne répondent pas encore. Vérifiez la connexion ; la page se mettra à jour toute seule.</span>`);
   if (S.db && !S.canWrite) parts.push(`<span><b>Lecture seule.</b> Ce compte peut consulter les évaluations mais pas les modifier.</span>`);
   const ex = S.students.filter(s => s.example).length;
-  if (ex && S.canWrite) parts.push(`<span><b>${ex} étudiants d'exemple</b> (nom EXEMPLE) servent à essayer la grille. Supprimez-les quand vous ajoutez vos étudiants.</span><button class="btn" data-act="del-examples">Supprimer les exemples</button>`);
+  if (ex && S.canWrite && S.admin) parts.push(`<span><b>${ex} étudiants d'exemple</b> (nom EXEMPLE) servent à essayer la grille. Supprimez-les quand vous ajoutez vos étudiants.</span><button class="btn" data-act="del-examples">Supprimer les exemples</button>`);
   b.innerHTML = parts.join(''); b.hidden = !parts.length;
 }
 
@@ -449,7 +453,7 @@ function renderMain(){
   if (fk){ const el = main.querySelector(`[data-fk="${CSS.escape(fk)}"]`); if (el && document.activeElement !== el) el.focus(); }
 }
 function buildNoClass(){
-  if (!S.canWrite) return `<div class="card empty"><h2>Aucune classe pour l'instant</h2><p>Le propriétaire de l'application n'a pas encore créé de classe.</p></div>`;
+  if (!S.canWrite || !S.admin) return `<div class="card empty"><h2>Aucune classe pour l'instant</h2><p>Aucune classe ne vous est encore attribuée : demandez à l'administrateur de l'application.</p></div>`;
   return `<div class="card empty"><span class="eyebrow">Premier pas</span><h2>Créez votre première classe</h2>
     <p>Une classe regroupe ses étudiants et ses évaluations. Vous pourrez en ajouter d'autres (${esc(CFG.classExamples)}) depuis le sélecteur en haut.</p>
     <form class="row" data-form="first-class"><label class="fld"><span>Nom de la classe</span><input id="firstClassName" type="text" value="${esc(CFG.defaultClassName)}" required></label><button class="btn btn-primary" type="submit">Créer la classe</button></form></div>`;
@@ -475,7 +479,7 @@ VIEWS.evaluations = {
       const chips = evalLines(ev).map(l => `<span class="chip code" title="${esc(l.short)}">${esc(l.key === 'TR' ? 'Transverse' : l.code)}</span>`).join('');
       return `<a class="card evrow" href="#eval-${esc(ev.id)}">
         <div class="evdate">${esc(fmtDate(ev.date))}</div>
-        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips"><span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}</div></div>
+        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips"><span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}${ev.createdBy && ev.createdBy !== S.me ? `<span class="chip author">par ${esc(authorOf(ev))}</span>` : ''}</div></div>
         <div class="evprog"><div class="prog">${st.done} / ${st.total} évalués · ${st.validated} validé${st.validated > 1 ? 's' : ''}</div><div class="bar"><i style="width:${pct}%"></i></div></div>
         <div class="avg"><span class="xs muted">Moyenne</span><br><strong>${fmtNote(st.avg)}</strong></div></a>`;
     }).join('');
@@ -497,7 +501,8 @@ VIEWS.eval = {
     $('#evHead').innerHTML = `<a class="back" href="#evaluations">← Évaluations</a>
       <div class="vhead"><div class="grow"><span class="eyebrow">${esc(ev.type || 'TP')}${ev.code ? ' · ' + esc(ev.code) : ''}</span><h1>${esc(ev.title)}</h1>
       <div class="meta"><span>${esc(fmtDate(ev.date))}</span><span>${lines.length} ligne${lines.length > 1 ? 's' : ''} évaluée${lines.length > 1 ? 's' : ''}</span></div></div>
-      <div class="actions">${S.canWrite ? `<button class="btn" data-act="edit-eval" data-id="${esc(ev.id)}">Modifier</button>` : ''}${S.dl ? `<button class="btn" data-act="export-eval" data-id="${esc(ev.id)}">Exporter (.xlsx)</button>` : ''}${S.canWrite ? `<button class="btn btn-danger" data-act="del-eval" data-id="${esc(ev.id)}">Supprimer</button>` : ''}</div></div>`;
+      <div class="actions">${canEditEval(ev) ? `<button class="btn" data-act="edit-eval" data-id="${esc(ev.id)}">Modifier</button>` : ''}${S.dl ? `<button class="btn" data-act="export-eval" data-id="${esc(ev.id)}">Exporter (.xlsx)</button>` : ''}${canEditEval(ev) ? `<button class="btn btn-danger" data-act="del-eval" data-id="${esc(ev.id)}">Supprimer</button>` : ''}</div></div>
+      ${S.canWrite && !canEditEval(ev) ? `<p class="hint">Évaluation créée par ${esc(authorOf(ev) || "l'administrateur")} : vous pouvez positionner et noter les étudiants, mais pas la modifier ni la supprimer.</p>` : ''}`;
     $('#evStats').innerHTML = `<div class="card stat"><span>Évalués</span><b>${st.done} / ${st.total}</b></div>
       <div class="card stat"><span>Validés</span><b>${st.validated} / ${st.total}</b></div>
       <div class="card stat"><span>Moyenne</span><b>${fmtNote(st.avg)}</b></div>
@@ -533,7 +538,7 @@ VIEWS.eval = {
 /* --- Vue : étudiants --- */
 VIEWS.etudiants = {
   build(){
-    const w = S.canWrite;
+    const w = S.canWrite && S.admin;
     return `<div class="vhead"><div class="grow"><h1>Étudiants</h1><div class="meta" id="stCount"></div></div></div>
       ${w ? `<div class="twocol" style="margin-bottom:18px">
         <form class="card pad form" data-form="add-student"><h2>Ajouter un étudiant</h2>
@@ -554,7 +559,7 @@ VIEWS.etudiants = {
       if (S.editing === s.id) return `<tr><td colspan="5"><form class="row" data-form="edit-student" data-id="${esc(s.id)}"><label class="fld"><span>Nom</span><input id="edNom" type="text" value="${esc(s.nom)}" required></label><label class="fld"><span>Prénom</span><input id="edPrenom" type="text" value="${esc(s.prenom)}"></label><button class="btn btn-primary" type="submit">Enregistrer</button><button class="btn" type="button" data-act="cancel-edit">Annuler</button></form></td></tr>`;
       return `<tr><td class="stick"><a class="namebtn" href="#etudiant-${esc(s.id)}" style="text-decoration:none">${esc(s.nom)} ${esc(s.prenom)}${s.example ? ' <span class="chip">exemple</span>' : ''}</a></td>
         <td>${acqCell(s.id)}</td><td class="num">${nEv}</td><td class="num"><b>${fmtNote(avg)}</b></td>
-        <td class="num">${S.canWrite ? `<button class="btn btn-ghost" data-act="edit-student" data-id="${esc(s.id)}">Renommer</button><button class="btn btn-ghost btn-danger" data-act="del-student" data-id="${esc(s.id)}">Supprimer</button>` : ''}</td></tr>`;
+        <td class="num">${S.canWrite && S.admin ? `<button class="btn btn-ghost" data-act="edit-student" data-id="${esc(s.id)}">Renommer</button><button class="btn btn-ghost btn-danger" data-act="del-student" data-id="${esc(s.id)}">Supprimer</button>` : ''}</td></tr>`;
     }).join('');
     $('#stList').innerHTML = `<div class="tablewrap"><table><thead><tr><th class="stick">Nom et prénom</th><th>Acquisition</th><th class="num">Évaluations</th><th class="num">Moyenne /20</th><th class="num"><span class="sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>${acqLegend()}`;
     if (S.editing){ const i = $('#edNom'); if (i && document.activeElement !== i && !document.activeElement.closest('#stList')) i.focus(); }
@@ -636,7 +641,7 @@ VIEWS.synthese = {
 /* --- Vue : réglages --- */
 VIEWS.reglages = {
   build(){
-    const cl = S.classes.find(c => c.id === S.classId) || {}; const p = points(); const w = S.canWrite;
+    const cl = S.classes.find(c => c.id === S.classId) || {}; const p = points(); const w = S.canWrite && S.admin;
     return `<div class="vhead"><div class="grow"><h1>Réglages</h1></div></div>
       <div class="twocol">
         <form class="card pad form" data-form="rename-class"><h2>Classe</h2>
@@ -784,8 +789,9 @@ async function submitEval(form){
   if (!title){ err.textContent = 'Donnez un titre à l\'évaluation.'; err.hidden = false; return; }
   if (!comps.length && !trLabel){ err.textContent = 'Cochez au moins une compétence, ou renseignez un objectif transverse.'; err.hidden = false; return; }
   const id = form.dataset.id || newId(); const old = evById(id);
+  if (old && !canEditEval(old)){ closeModal(); toast("Cette évaluation a été créée par un autre formateur : vous ne pouvez pas la modifier."); return; }
   const data = {classId:old ? old.classId : S.classId, bloc:old ? unitOf(old) : S.bloc, title, code:$('#fCode', m).value.trim(), date:$('#fDate', m).value || today(), type:$('#fType', m).value,
-    comps, transverse:trLabel ? {label:trLabel, weight:num($('#fTrW', m).value, 1)} : null, createdAt:old ? (old.createdAt || new Date().toISOString()) : new Date().toISOString(), ...stamp()};
+    comps, transverse:trLabel ? {label:trLabel, weight:num($('#fTrW', m).value, 1)} : null, createdBy:old ? old.createdBy : S.me, createdAt:old ? (old.createdAt || new Date().toISOString()) : new Date().toISOString(), ...stamp()};
   closeModal();
   S.evals = S.evals.filter(e => e.id !== id).concat([{id, ...data}]);
   await setDoc('evaluations/' + id, data);
@@ -933,6 +939,8 @@ document.addEventListener('click', async e => {
   if (a === 'modal-cancel' || a === 'cancel-edit'){ if (a === 'modal-cancel') closeModal(); else { S.editing = null; S.builtKey = ''; render(); } return; }
   if (a === 'save-now'){ saveNow(); return; }
   if (!S.canWrite && !['export-eval','export-class'].includes(a)) return;
+  if (!S.admin && ['new-class','del-class','edit-student','del-student','del-examples'].includes(a)) return;
+  if ((a === 'edit-eval' || a === 'del-eval') && !canEditEval(evById(b.dataset.id))) return;
   if ((a === 'p-lv' || a === 'p-start' || a === 'p-end') && panelLocked()) return;
   if (a === 'p-validate'){ validateCurrent(b.dataset.next === '1'); return; }
   if (a === 'p-unlock'){ saveResult(evById(S.panel.evId), S.panel.sid, {validated:null}); toast('Positionnement déverrouillé : vous pouvez le modifier'); return; }
@@ -971,7 +979,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.closest && t.closest('form[data-form="eval"]')) checkFm();
-  if (t.id === 'classSel'){ if (t.value === '__new'){ if (S.canWrite) openNewClass(); else renderClassSelect(); } else { setClass(t.value); location.hash = '#evaluations'; } return; }
+  if (t.id === 'classSel'){ if (t.value === '__new'){ if (S.canWrite && S.admin) openNewClass(); else renderClassSelect(); } else { setClass(t.value); location.hash = '#evaluations'; } return; }
   if (!S.canWrite) return;
   if (t.classList.contains('lvsel')){ const ev = evById(t.dataset.ev); if (ev) saveResult(ev, t.dataset.s, {levels:{[t.dataset.k]: t.value || null}}); return; }
   if (S.panel && panelLocked() && (t.id === 'pAbsent' || t.id === 'pOverride')){ updatePanel(); return; }
@@ -989,6 +997,7 @@ document.addEventListener('submit', async e => {
   if (!S.canWrite) return;
   const k = f.dataset.form;
   if (k === 'eval') return submitEval(f);
+  if (!S.admin) return;
   if (k === 'first-class'){ const n = $('#firstClassName').value.trim(); if (n) createClass(n); return; }
   if (k === 'new-class'){ const n = $('#ncName').value.trim(); if (!n) return; closeModal(); createClass(n); return; }
   if (k === 'rename-class'){ const n = $('#clName').value.trim(); if (n){ await updDoc('classes/' + S.classId, {name:n}); toast('Classe renommée'); } return; }
@@ -1057,7 +1066,9 @@ async function start(){
   if (user){
     try { S.me = await user.id(); } catch(e){}
     try { const can = await user.can('data.write'); if (can === false) S.canWrite = false; } catch(e){}
+    try { if (user.names) S.names = await user.names(); } catch(e){}
   }
+  S.admin = !(window.APP_ROLE && window.APP_ROLE.role !== 'admin');
   subscribeGlobal(); render();
 }
 start();

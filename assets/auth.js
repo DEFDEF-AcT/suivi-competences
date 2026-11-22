@@ -66,13 +66,20 @@ async function assurance() {
   const { data, error } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
   return error ? null : data;
 }
-async function memberOf(user) {
-  const { data, error } = await client.from('members').select('display_name').eq('user_id', user.id).maybeSingle();
+async function memberOf() {
+  const { data, error } = await client.rpc('my_access');
   if (error) throw error;
   return data;   // null : compte inconnu de la liste des formateurs autorisés
 }
+const LABELS = { ismi: 'Évaluations ISMI', bts: 'Évaluations BTS MV', pre: 'Habilitations PRE-VE' };
 const Auth = {
-  client, esc, user: null, name: '',
+  client, esc, user: null, name: '', role: 'collegue', access: {}, mustChange: false, LABELS,
+  isAdmin() { return this.role === 'admin'; },
+  canUse(app) {
+    if (this.role === 'admin') return true;
+    const a = this.access || {};
+    return app === 'pre' ? a.pre === true : !!(a[app] && typeof a[app] === 'object');
+  },
   remembered,
   setRemember(v) { safe(() => localStorage.setItem(REMEMBER, v ? '1' : '0')); },
   touch, watchActivity, assurance, memberOf,
@@ -81,8 +88,9 @@ const Auth = {
     return PAGES.includes(n) ? n : null;
   },
 
-  /* Pages protégées : renvoie l'utilisateur, ou redirige vers la connexion. */
-  async requireSession() {
+  /* Pages protégées : renvoie l'utilisateur, ou redirige vers la connexion.
+     opts.app : partie demandée ('ismi', 'bts', 'pre') — refusée si le compte n'y a pas accès. */
+  async requireSession(opts = {}) {
     const { data: { session } } = await client.auth.getSession();
     if (!session) return home({ next: here() });
     if (idleExpired()) { await this.logout('inactivite'); return never(); }
@@ -91,13 +99,16 @@ const Auth = {
     const a = await assurance();
     if (a && a.nextLevel === 'aal2' && a.currentLevel !== 'aal2') return home({ next: here() });
     let m;
-    try { m = await memberOf(u.user); } catch (e) { m = undefined; }
+    try { m = await memberOf(); } catch (e) { m = undefined; }
     if (m === null) { await client.auth.signOut({ scope: 'local' }); return home({ msg: 'refuse' }); }
     this.user = u.user;
-    this.name = (m && m.display_name) || u.user.email || '';
+    this.name = (m && m.name) || u.user.email || '';
+    if (m) { this.role = m.role; this.access = m.access || {}; this.mustChange = !!m.must_change_password; }
+    if (this.mustChange && here() !== 'index.html') return home({ msg: 'motdepasse' });
+    if (opts.app && m && !this.canUse(opts.app)) return home({ msg: 'acces' });
     touch(); startIdle();
     client.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && !loggingOut) home({ msg: 'deconnecte' }); });
-    return { user: u.user, name: this.name };
+    return { user: u.user, name: this.name, role: this.role, access: this.access, mustChange: this.mustChange };
   },
 
   /* Vérifie la session après un refus du serveur (session expirée → reconnexion). */

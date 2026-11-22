@@ -130,7 +130,7 @@ async function ping() {
   const { error } = await sb.from('docs').select('id').eq('app', APP).limit(1);
   return !error;
 }
-const db = { doc: docRef, collection: c => query(c, []), deleteMany, ping };
+const db = { doc: docRef, collection: c => query(c, []), deleteMany, ping, reload: () => reload().catch(() => {}) };
 
 /* ---------- Chargement et direct ---------- */
 async function fetchAll() {
@@ -179,9 +179,13 @@ function subscribe() {
 const user = {
   id: () => Promise.resolve(me),
   can: () => Promise.resolve(true),
+  async names() {
+    if (!names) { const { data } = await sb.rpc('member_names'); names = Object.fromEntries((data || []).map(m => [m.user_id, m.display_name])); }
+    return names;
+  },
   async profiles(ids) {
-    if (!names) { const { data } = await sb.from('members').select('user_id,display_name'); names = Object.fromEntries((data || []).map(m => [m.user_id, m.display_name])); }
-    const out = {}; ids.forEach(id => { out[id] = { name: names[id] || '', isMe: id === me }; }); return out;
+    const n = await this.names();
+    const out = {}; ids.forEach(id => { out[id] = { name: n[id] || '', isMe: id === me }; }); return out;
   }
 };
 const downloads = {
@@ -238,8 +242,9 @@ window.addEventListener('beforeunload', e => { if (inflight > 0 || failed.size) 
 
 /* ---------- Démarrage ---------- */
 const ready = (async () => {
-  const s = await Auth.requireSession();
+  const s = await Auth.requireSession({ app: APP });
   me = s.user.id;
+  window.APP_ROLE = { role: s.role, me };
   Auth.mountBar(CFG.name);
   Auth.onBeforeLeave(() => (window.EvalApp ? window.EvalApp.flush() : true));
   try { await reload(); } catch (e) { console.error(e); return null; }

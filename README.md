@@ -42,8 +42,8 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 
 ## Gestion courante
 
-- **Ajouter un collègue** : étapes 1 et 2 avec son adresse.
-- **Retirer un accès** : `delete from public.members where user_id = (select id from auth.users where email = '…');` puis supprimer l'utilisateur dans *Authentication* → *Users*.
+- **Collègues** : accueil → section *Équipe* (visible de l'administrateur seul) → *Ajouter un collègue*. Vous choisissez son nom, son adresse (identifiant) et ses accès : ISMI et/ou BTS MV (toutes les classes ou seulement certaines), PRE. Un mot de passe provisoire s'affiche une seule fois : transmettez-le par un moyen sûr ; le collègue choisit son propre mot de passe à la première connexion. *Modifier*, *Nouveau mot de passe* (remet aussi à zéro sa double authentification) et *Retirer* sont dans la même liste.
+- **Droits d'un collègue** (appliqués par la base, pas seulement par l'affichage) : il ne voit que les parties et classes attribuées ; il crée ses évaluations et peut les modifier ou les supprimer ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres ; classes, étudiants, barème, restauration et historique restent réservés à l'administrateur. L'accès PRE est complet ou nul (l'interface PRE ne distingue pas les formateurs).
 - **Mot de passe oublié** : *Authentication* → *Users* → l'utilisateur → définir un nouveau mot de passe. Téléphone perdu (double authentification) : même écran → supprimer le facteur MFA.
 - **Nouvelle version de l'interface PRE** : `node outils/construire-pre.mjs "chemin/du/fichier.html"` chiffre la nouvelle version avec une nouvelle clé (écrite dans `outils/cles.local.json`, jamais publié). Ajouter cette clé à la table `app_keys` **avant** de publier `assets/pre-ve.bin`. Les données ne changent pas.
 - **Projet gratuit** : Supabase met en pause un projet gratuit inactif 7 jours ; l'action GitHub `keepalive.yml` l'appelle deux fois par semaine pour l'éviter. Si le projet est en pause malgré tout : tableau de bord → *Restore project*.

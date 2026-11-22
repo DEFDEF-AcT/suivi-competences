@@ -144,7 +144,7 @@ function showError(msg) {
 
 /* ---------- Ouverture ---------- */
 (async () => {
-  const s = await A.requireSession();
+  const s = await A.requireSession({ app: 'pre' });
   uid = s.user.id;
   const bar = A.mountBar('Habilitations PRE-VE');
   bar.querySelector('#appbarSlot').innerHTML = `<span class="savestate" id="preState" role="status" aria-live="polite"><i aria-hidden="true"></i><span>Connexion…</span></span>
