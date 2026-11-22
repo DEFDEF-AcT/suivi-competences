@@ -98,3 +98,15 @@ section[data-pane="administration"] > .teamcard{margin-top:0}
 .team-acts > div{display:flex; flex-direction:column; align-items:flex-end; gap:0}
 .team-acts .btn{padding:3px 8px; font-size:var(--fs-xs)}
 .team-mail{word-break:break-all}
+
+/* Bandeau des évaluations : classe en haut à gauche, enregistrement à droite */
+.toprow{display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; width:100%; padding-bottom:4px; border-bottom:1px solid var(--line)}
+.classpick.big{margin-left:0; gap:10px; font-size:var(--fs-sm); font-weight:700; color:var(--ink-2); text-transform:uppercase; letter-spacing:.04em}
+.classpick.big select{font-size:1.1rem; font-weight:800; text-transform:none; letter-spacing:0; color:var(--navy); border:2px solid var(--navy); border-radius:8px; padding:7px 34px 7px 12px; min-width:280px; max-width:min(520px, 100%); background:#fff; cursor:pointer}
+.classpick.big select:hover{background:#F3F7FC}
+.saveblock{margin-left:auto; display:flex; align-items:center; gap:10px}
+@media (max-width:720px){
+  .classpick.big{width:100%}
+  .classpick.big select{flex:1; min-width:0; max-width:none}
+  .saveblock{width:100%; justify-content:space-between}
+}

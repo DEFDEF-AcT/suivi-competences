@@ -7,19 +7,20 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>Évaluations ISMI</title>
-<link rel="icon" href="assets/icon.svg?v=202611222025" type="image/svg+xml">
-<link rel="stylesheet" href="assets/eval.css?v=202611222025">
-<link rel="stylesheet" href="assets/app.css?v=202611222025">
+<link rel="icon" href="assets/icon.svg?v=202611222031" type="image/svg+xml">
+<link rel="stylesheet" href="assets/eval.css?v=202611222031">
+<link rel="stylesheet" href="assets/app.css?v=202611222031">
 </head>
 <body>
 
 <header class="top">
   <div class="wrap top-in">
+    <div class="toprow">
+      <label class="classpick big" for="classSel"><span>Classe</span><select id="classSel" disabled><option>Chargement…</option></select></label>
+      <div class="saveblock"><div class="savestate" role="status" aria-live="polite"><i aria-hidden="true"></i><span>Enregistrement automatique</span><button type="button" class="linkbtn" data-act="retry-save" hidden>Réessayer</button></div><button type="button" class="btn btn-primary" data-act="save-now" title="Envoie les dernières saisies et vérifie que tout est enregistré dans la base">Enregistrer</button></div>
+    </div>
     <div class="brand"><div class="mark" id="blocMark" aria-hidden="true">B3</div><div><strong>Évaluations ISMI</strong><span id="blocSub">Bloc 3 · Diagnostiquer et traiter les dysfonctionnements</span></div></div>
     <div class="blocs" role="group" aria-label="Bloc évalué"><button type="button" class="blocbtn" data-act="bloc" data-bloc="1" aria-pressed="false">Bloc 1 · Concevoir</button><button type="button" class="blocbtn" data-act="bloc" data-bloc="3" aria-pressed="true">Bloc 3 · Diagnostiquer</button></div>
-    <label class="classpick" for="classSel"><span>Classe</span><select id="classSel" disabled><option>Chargement…</option></select></label>
-    <div class="savestate" role="status" aria-live="polite"><i aria-hidden="true"></i><span>Enregistrement automatique</span><button type="button" class="linkbtn" data-act="retry-save" hidden>Réessayer</button></div>
-    <div class="filebar"><button type="button" class="btn btn-primary" data-act="save-now" title="Envoie les dernières saisies et vérifie que tout est enregistré dans la base">Enregistrer</button></div>
     <nav class="tabs" id="tabs" aria-label="Sections">
       <a href="#evaluations" data-v="evaluations">Évaluations</a>
       <a href="#etudiants" data-v="etudiants">Étudiants</a>
@@ -37,11 +38,11 @@
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <div id="tip" role="tooltip" hidden></div>
 
-<script src="assets/vendor/supabase.js?v=202611222025"></script>
-<script src="assets/config.js?v=202611222025"></script>
-<script src="assets/auth.js?v=202611222025"></script>
-<script src="assets/ref-ismi.js?v=202611222025"></script>
-<script src="assets/store.js?v=202611222025"></script>
-<script src="assets/eval-app.js?v=202611222025"></script>
+<script src="assets/vendor/supabase.js?v=202611222031"></script>
+<script src="assets/config.js?v=202611222031"></script>
+<script src="assets/auth.js?v=202611222031"></script>
+<script src="assets/ref-ismi.js?v=202611222031"></script>
+<script src="assets/store.js?v=202611222031"></script>
+<script src="assets/eval-app.js?v=202611222031"></script>
 </body>
 </html>
