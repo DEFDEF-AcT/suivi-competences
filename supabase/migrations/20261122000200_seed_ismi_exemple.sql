@@ -1,0 +1,9 @@
+insert into public.docs (app, coll, id, data) values
+('ismi','classes','ismi3-2627','{"name": "ISMI 3 — 2026-2027", "createdAt": "2026-11-19T07:40:00.000Z"}'::jsonb),
+('ismi','evaluations','tp1diag','{"classId": "ismi3-2627", "bloc": 3, "title": "TP1 DIAG — Méthode de diagnostic", "code": "Bloc3_P5_TP1_DIAG", "date": "2026-11-19", "type": "TP", "comps": [{"code": "3-A1C1", "status": "Fortement mobilisée", "weight": 1}, {"code": "3-A1C2", "status": "Fortement mobilisée", "weight": 1}, {"code": "3-A3C1", "status": "Fortement mobilisée", "weight": 1}, {"code": "3-A2C1", "status": "Fortement mobilisée", "weight": 1}], "transverse": {"label": "Posture : confronter documentation, datasheet et mesure ; sourcer, dater et signaler les écarts", "weight": 1}, "createdAt": "2026-11-19T07:40:00.000Z"}'::jsonb),
+('ismi','students','exa','{"classId": "ismi3-2627", "nom": "EXEMPLE", "prenom": "Étudiant A", "example": true, "createdAt": "2026-11-19T07:40:00.000Z"}'::jsonb),
+('ismi','students','exb','{"classId": "ismi3-2627", "nom": "EXEMPLE", "prenom": "Étudiant B", "example": true, "createdAt": "2026-11-19T07:40:00.000Z"}'::jsonb),
+('ismi','students','exc','{"classId": "ismi3-2627", "nom": "EXEMPLE", "prenom": "Étudiant C", "example": true, "createdAt": "2026-11-19T07:40:00.000Z"}'::jsonb),
+('ismi','results','tp1diag_exa','{"evalId": "tp1diag", "studentId": "exa", "classId": "ismi3-2627", "levels": {"3-A1C1": "MS", "3-A1C2": "MF", "3-A3C1": "MS", "3-A2C1": "TBM", "TR": "MS"}, "oral": "Exemple : comment avez-vous exclu les autres calculateurs du réseau ?", "comment": "Exemple de commentaire.", "start": "2026-11-19T07:45:00.000Z", "end": "2026-11-19T07:57:00.000Z", "updatedAt": "2026-11-19T07:57:00.000Z"}'::jsonb),
+('ismi','results','tp1diag_exb','{"evalId": "tp1diag", "studentId": "exb", "classId": "ismi3-2627", "levels": {"3-A1C1": "MF", "3-A1C2": "MI"}, "updatedAt": "2026-11-19T07:58:00.000Z"}'::jsonb)
+on conflict do nothing;

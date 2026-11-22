@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://hkjzjpxsnmfifrwvtdqe.supabase.co wss://hkjzjpxsnmfifrwvtdqe.supabase.co; font-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Suivi des compétences</title>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/eval.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<!-- Connexion -->
+<section class="login" id="vLogin" hidden>
+  <div class="card">
+    <h1>Suivi des compétences</h1>
+    <p class="sub" id="etab"></p>
+    <form id="fLogin" autocomplete="on" novalidate>
+      <div class="msg" id="loginMsg" hidden></div>
+      <label class="fld"><span>Identifiant (adresse e-mail)</span><input id="lEmail" type="email" autocomplete="username" inputmode="email" required></label>
+      <label class="fld"><span>Mot de passe</span><input id="lPass" type="password" autocomplete="current-password" required></label>
+      <label class="chkline"><input type="checkbox" id="lRemember"> <span>Rester connecté sur cet appareil.<br><span class="xs">À cocher uniquement sur un appareil personnel : sinon la session se ferme avec le navigateur, ou après une heure sans activité.</span></span></label>
+      <button class="btn btn-primary" type="submit" id="lGo">Se connecter</button>
+    </form>
+  </div>
+  <p class="foot">Accès réservé. Données hébergées en France, transmises de façon chiffrée.</p>
+</section>
+
+<!-- Double authentification -->
+<section class="login" id="vMfa" hidden>
+  <div class="card">
+    <h1>Vérification</h1>
+    <p class="sub">Saisissez le code à 6 chiffres affiché par votre application d'authentification.</p>
+    <form id="fMfa" novalidate>
+      <div class="msg err" id="mfaMsg" hidden></div>
+      <input id="mCode" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="Code à 6 chiffres" required>
+      <button class="btn btn-primary" type="submit">Valider</button>
+      <button class="btn" type="button" id="mCancel">Annuler</button>
+    </form>
+  </div>
+</section>
+
+<!-- Accueil -->
+<main class="hub" id="vHub" hidden>
+  <div class="hubhead">
+    <div class="grow"><span class="eyebrow" id="hubEtab"></span><h1>Bonjour <span id="hubName"></span></h1></div>
+  </div>
+  <div class="tiles">
+    <a class="card tile" href="ismi.html"><span class="eyebrow">Bac+3</span><h2>Évaluations ISMI</h2><p>Blocs 1 et 3 : positionnement MI à TBM, profil de compétences, synthèse de classe, export Excel.</p><span class="stat-line" id="stIsmi">…</span><span class="go">Ouvrir →</span></a>
+    <a class="card tile t-bts" href="bts.html"><span class="eyebrow">BTS Maintenance des véhicules</span><h2>Évaluations BTS MV</h2><p>Pôles 1 à 4 : critères du référentiel 2027, statuts A / M / FM, même fonctionnement que l'ISMI.</p><span class="stat-line" id="stBts">…</span><span class="go">Ouvrir →</span></a>
+    <a class="card tile t-pre" href="pre.html"><span class="eyebrow">NF C 18-550 · OGELI</span><h2>Habilitations PRE-VE</h2><p>L'interface de gestion des habilitations, à l'identique, avec ses données enregistrées en ligne.</p><span class="stat-line" id="stPre">…</span><span class="go">Ouvrir →</span></a>
+  </div>
+
+  <div class="panels">
+    <section class="card">
+      <h2>Sauvegarde</h2>
+      <p>Chaque modification est enregistrée automatiquement dans la base sécurisée, avec un historique. Téléchargez de temps en temps une copie complète à ranger dans vos dossiers.</p>
+      <div class="inline"><button class="btn btn-primary" type="button" id="bBackup">Télécharger une sauvegarde complète</button></div>
+      <p class="xs muted" id="backupMsg"></p>
+    </section>
+
+    <section class="card">
+      <h2>Double authentification</h2>
+      <div id="mfaBox"><p>Chargement…</p></div>
+    </section>
+
+    <section class="card">
+      <h2>Mot de passe</h2>
+      <form id="fPass" class="stack" novalidate>
+        <label class="fld"><span>Nouveau mot de passe (12 caractères au moins)</span><input id="p1" type="password" autocomplete="new-password" minlength="12"></label>
+        <label class="fld"><span>Confirmation</span><input id="p2" type="password" autocomplete="new-password" minlength="12"></label>
+        <div class="msg" id="passMsg" hidden></div>
+        <div class="inline"><button class="btn" type="submit">Changer le mot de passe</button></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Session</h2>
+      <p>Déconnexion automatique après une heure sans activité, sauf sur un appareil où vous avez choisi de rester connecté.</p>
+      <div class="inline"><button class="btn" type="button" id="bOut">Se déconnecter</button><button class="btn btn-danger" type="button" id="bOutAll">Déconnecter tous mes appareils</button></div>
+    </section>
+  </div>
+  <p class="foot">Base de données Supabase hébergée à Paris · connexion chiffrée · accès limité aux comptes autorisés.</p>
+</main>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="assets/vendor/supabase.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/hub.js"></script>
+</body>
+</html>

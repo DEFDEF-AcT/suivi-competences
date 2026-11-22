@@ -1,0 +1,72 @@
+/* Compléments communs : barre de connexion, accueil, page PRE. S'appuie sur les couleurs de eval.css. */
+
+/* Barre du haut (toutes les pages après connexion) */
+.appbar{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; padding:7px max(16px,env(safe-area-inset-left,0px)); padding-top:max(7px,env(safe-area-inset-top,0px)); background:#153D63; color:#fff; font-family:var(--font); font-size:var(--fs-sm); position:relative; z-index:25}
+.appbar a, .appbar button{color:#fff}
+.appbar-home{font-weight:700; text-decoration:none; padding:4px 8px; border-radius:6px; background:rgba(255,255,255,.12); white-space:nowrap}
+.appbar-home:hover{background:rgba(255,255,255,.22)}
+.appbar-title{font-weight:700; white-space:nowrap}
+.appbar-slot{flex:1 1 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0}
+.appbar-user{opacity:.85; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.appbar-out, .appbar-btn{background:transparent; border:1px solid rgba(255,255,255,.45); border-radius:6px; padding:4px 10px; font:inherit; font-weight:700; cursor:pointer; white-space:nowrap}
+.appbar-out:hover, .appbar-btn:hover{background:rgba(255,255,255,.14)}
+.appbar-btn.primary{background:var(--amber); border-color:var(--amber); color:#3D2C00}
+.appbar-btn.primary:hover{filter:brightness(1.05); background:var(--amber)}
+.appbar .savestate{color:#fff; opacity:.95}
+.appbar .savestate.ok{color:#C9F0C0} .appbar .savestate.ok i{background:#7FD36B}
+.appbar .savestate.err{color:#FFC9C4} .appbar .savestate.err i{background:#FF8A80}
+@media (max-width:720px){ .appbar-user{display:none} .appbar-title{display:none} }
+
+/* Évaluations : compléments */
+.blocs{max-width:100%; flex-wrap:wrap}
+.compgroup{margin:12px 0 2px; padding:6px 8px; border-radius:6px; background:var(--surface-2); font-size:var(--fs-sm); color:var(--ink-2)}
+.compgroup b{color:var(--navy); margin-right:6px}
+.compgroup + .comprow{border-top:0}
+.refgroup{margin:14px 0 2px; font-size:var(--fs-md)}
+.refgroup b{color:var(--navy); margin-right:6px}
+
+/* Accueil et connexion */
+.hub{max-width:980px; margin:0 auto; padding:28px max(16px,env(safe-area-inset-left,0px)) 64px}
+.login{max-width:420px; margin:8vh auto 40px; padding:0 16px}
+.login .card{padding:24px}
+.login h1{font-size:var(--fs-xl); margin-bottom:4px}
+.login .sub{color:var(--ink-2); margin:0 0 18px; font-size:var(--fs-sm)}
+.login form{display:grid; gap:14px}
+.login input[type=email], .login input[type=password], .login input[type=text]{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface); font-size:1rem}
+.login .btn{justify-content:center; padding:10px 14px; font-size:var(--fs-md)}
+.chkline{display:flex; gap:8px; align-items:flex-start; font-size:var(--fs-sm); color:var(--ink-2)}
+.chkline input{margin-top:3px}
+.msg{padding:10px 12px; border-radius:var(--r-sm); font-size:var(--fs-sm); background:var(--amber-soft); color:var(--on-amber)}
+.msg.err{background:var(--mi-bg); color:var(--mi-fg)}
+.msg.ok{background:var(--ms-bg); color:var(--ms-fg)}
+.code-input{letter-spacing:.4em; font-size:1.4rem !important; text-align:center; font-variant-numeric:tabular-nums}
+.foot{margin-top:18px; font-size:var(--fs-xs); color:var(--ink-3); text-align:center}
+
+.hubhead{display:flex; flex-wrap:wrap; gap:6px 16px; align-items:flex-end; margin-bottom:20px}
+.hubhead .grow{flex:1 1 280px}
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px}
+.tile{display:flex; flex-direction:column; gap:8px; padding:18px; text-decoration:none; color:inherit; min-height:170px; border-top:4px solid var(--navy)}
+.tile:hover{border-color:var(--navy); box-shadow:var(--shadow)}
+.tile.t-bts{border-top-color:#c2410c} .tile.t-pre{border-top-color:var(--amber)}
+.tile h2{font-size:var(--fs-lg)}
+.tile p{margin:0; color:var(--ink-2); font-size:var(--fs-sm)}
+.tile .stat-line{margin-top:auto; font-size:var(--fs-xs); font-weight:700; color:var(--ink-3)}
+.tile .go{font-weight:700; color:var(--navy); font-size:var(--fs-sm)}
+.panels{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-top:22px}
+.panels .card{padding:18px}
+.panels h2{margin-bottom:8px}
+.panels p{color:var(--ink-2); font-size:var(--fs-sm); margin:6px 0 12px}
+.qr{display:block; width:200px; height:200px; margin:10px 0; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px}
+.secret{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:var(--fs-sm); word-break:break-all; background:var(--surface-2); padding:6px 8px; border-radius:6px}
+.stack{display:grid; gap:10px}
+.inline{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+
+/* Page PRE : l'interface d'origine occupe tout l'écran sous la barre */
+body.prepage{display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden}
+body.prepage::before{display:none}
+#preFrame{flex:1 1 auto; width:100%; border:0; display:block; background:#fff}
+#preFrame[hidden]{display:none}
+.prebanner{display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:9px max(16px,env(safe-area-inset-left,0px)); background:var(--amber-soft); color:var(--on-amber); font-size:var(--fs-sm)}
+.prebanner.err{background:var(--mi-bg); color:var(--mi-fg)}
+.prebanner .btn{padding:5px 10px}
+#preMain{overflow:auto; padding-top:24px}

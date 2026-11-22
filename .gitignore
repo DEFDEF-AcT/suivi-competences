@@ -1,0 +1,8 @@
+.DS_Store
+.claude/
+node_modules/
+*.local.*
+# Ne jamais publier l'interface PRE (banque de questions et réponses) ni des sauvegardes de données
+PRE-VE_Gestion_Formation_*.html
+*sauvegarde*.json
+evaluations_*.json
