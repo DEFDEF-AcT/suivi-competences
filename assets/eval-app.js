@@ -653,6 +653,9 @@ VIEWS.reglages = {
           <label class="fld" style="max-width:320px"><span>Seuil d'acquisition (graphiques et colonne « Acquisition »)</span><select id="pt-seuil" class="inp"${w ? '' : ' disabled'}>${['MF','MS','TBM'].map(k => `<option value="${k}"${k === seuilLevel() ? ' selected' : ''}>${k} ou plus</option>`).join('')}</select></label>
           ${w ? `<div class="formactions"><button class="btn btn-primary" type="submit">Enregistrer le barème</button></div>` : ''}</form>
       </div>
+      ${w ? `<div class="section card pad"><h2>Classes de la formation</h2>
+        <p class="hint">Supprimer une classe efface ses étudiants, ses évaluations (tous ${UNIT.toLowerCase()}s) et tous les positionnements, pour tous les formateurs. Une copie reste dans l'historique de la base et peut être restaurée en cas d'erreur.</p>
+        <div id="classList"><p class="muted small">Chargement…</p></div></div>` : ''}
       <div class="section card pad"><h2>Sauvegarde des données</h2>
         <p class="small muted" style="max-width:78ch">Chaque saisie est enregistrée automatiquement dans la base de données sécurisée, hébergée en France : vous retrouvez vos évaluations sur tous vos appareils, après connexion. Le bouton « Enregistrer », en haut de page, vérifie que tout est bien envoyé. Un historique des modifications est conservé ; gardez aussi, de temps en temps, une copie de sécurité dans vos dossiers.</p>
         <div class="formactions" style="justify-content:flex-start">${w ? `<button type="button" class="btn btn-primary" data-act="save-now">Enregistrer maintenant</button>` : ''}<button type="button" class="btn" data-local="download">Télécharger une copie de sécurité (.json)</button>${w ? `<button type="button" class="btn" data-local="open">Restaurer une sauvegarde…</button>` : ''}</div>
@@ -661,7 +664,18 @@ VIEWS.reglages = {
         <div class="reflist">${ACTS.map(a => `<h3 class="refgroup"><b>${esc(a.code)}</b> ${esc(a.name)}</h3>` + COMPS.filter(c => actOf(c) === a.code).map(c => `<div class="card pad ref"><b>${esc(c.code)}</b> — ${esc(c.full)}<p><b style="color:var(--ink-2)">${esc(W.crit)} :</b> ${esc(c.crit)}</p></div>`).join('')).join('')}</div></div>
       ${CFG.levelDesc ? `<div class="section"><h2>Échelle de positionnement</h2><div class="reflist">${LEVELS.map(k => `<div class="card pad ref">${lvChip(k)} <b>${LEVEL_NAME[k]}</b><p>${esc(LEVEL_DESC[k])}</p></div>`).join('')}</div></div>` : ''}`;
   },
-  update(){}
+  update(){
+    if (!$('#classList')) return;
+    classStats().then(st => {
+      const box = $('#classList'); if (!box) return;
+      const rows = S.classes.map(c => {
+        const n = st[c.id] || {students:0, evaluations:0, results:0};
+        return `<tr><td class="stick"><b>${esc(c.name)}</b>${c.id === S.classId ? ' <span class="chip">affichée</span>' : ''}</td><td class="num">${n.students}</td><td class="num">${n.evaluations}</td><td class="num">${n.results}</td>
+          <td class="num"><button class="btn btn-ghost btn-danger" type="button" data-act="del-class" data-id="${esc(c.id)}">Supprimer</button></td></tr>`;
+      }).join('');
+      box.innerHTML = S.classes.length ? `<div class="tablewrap"><table><thead><tr><th class="stick">Classe</th><th class="num">Étudiants</th><th class="num">Évaluations</th><th class="num">Positionnements</th><th class="num"><span class="sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Aucune classe.</p>';
+    }).catch(() => {});
+  }
 };
 
 /* ---------- Panneau de saisie ---------- */
@@ -915,15 +929,45 @@ async function createClass(name){
   await setDoc('classes/' + id, data);
   setClass(id); location.hash = '#etudiants'; toast('Classe créée : ajoutez ses étudiants');
 }
-async function deleteClass(){
-  const cl = S.classes.find(c => c.id === S.classId); if (!cl) return;
-  const ok = await confirmBox('Supprimer la classe ?', `« ${cl.name} », ses ${S.students.length} étudiants, ses ${S.evals.length} évaluations et toutes les notes seront supprimés définitivement.`, 'Supprimer la classe');
+async function classStats(){
+  const by = {};
+  for (const coll of ['students', 'evaluations', 'results']){
+    const snap = await S.db.collection(coll).get();
+    snap.docs.forEach(d => { const c = (d.data() || {}).classId; if (!c) return; (by[c] = by[c] || {students:0, evaluations:0, results:0})[coll]++; });
+  }
+  return by;
+}
+function confirmTyped(title, text, expected, okLabel){
+  return new Promise(resolve => {
+    let answered = false;
+    const m = openModal(`<h2>${esc(title)}</h2><p>${esc(text)}</p>
+      <label class="fld"><span>Pour confirmer, tapez le nom de la classe : <b>${esc(expected)}</b></span><input id="ctIn" type="text" autocomplete="off"></label>
+      <div class="formactions"><button class="btn" type="button" data-a="no">Annuler</button><button class="btn btn-primary" type="button" data-a="yes" disabled style="background:var(--danger);border-color:var(--danger);color:#fff">${esc(okLabel)}</button></div>`,
+      {small:true, onClose:() => { if (!answered) resolve(false); }});
+    const inp = m.querySelector('#ctIn'), yes = m.querySelector('[data-a=yes]');
+    const norm = x => String(x).trim().replace(/\s+/g, ' ').toLocaleLowerCase('fr');
+    inp.addEventListener('input', () => { yes.disabled = norm(inp.value) !== norm(expected); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !yes.disabled){ e.preventDefault(); yes.click(); } });
+    m.querySelector('[data-a=no]').addEventListener('click', () => { answered = true; resolve(false); closeModal(); });
+    yes.addEventListener('click', () => { if (yes.disabled) return; answered = true; resolve(true); closeModal(); });
+    inp.focus();
+  });
+}
+async function deleteClassById(cid){
+  const cl = S.classes.find(c => c.id === cid); if (!cl || !S.admin) return;
+  const ids = async coll => (await S.db.collection(coll).where('classId', '==', cid).get()).docs.map(d => coll + '/' + d.id);
+  const [res, sts, evs] = await Promise.all([ids('results'), ids('students'), ids('evaluations')]);
+  const pl = (n, w) => n + ' ' + w + (n > 1 ? 's' : '');
+  const ok = await confirmTyped('Supprimer la classe ?', `« ${cl.name} » : ${pl(sts.length, 'étudiant')}, ${pl(evs.length, 'évaluation')} (tous ${UNIT.toLowerCase()}s) et ${pl(res.length, 'positionnement')} seront supprimés pour tous les formateurs. Une copie reste dans l'historique de la base et peut être restaurée en cas d'erreur.`, cl.name, 'Supprimer la classe');
   if (!ok) return;
   toast('Suppression en cours…');
-  const rids = [...S.results.keys()], sids = S.students.map(s => s.id), eids = S.evals.map(e => e.id), cid = cl.id;
-  await delMany([...rids.map(r => 'results/' + r), ...sids.map(s => 'students/' + s), ...eids.map(e => 'evaluations/' + e), 'classes/' + cid]);
-  LS.set(LSK('class'), ''); S.classes = S.classes.filter(c => c.id !== cid); setClass(null); pickClass(); location.hash = '#evaluations'; toast('Classe supprimée');
+  try { await delMany([...res, ...sts, ...evs, 'classes/' + cid]); } catch(e){ return; }
+  S.classes = S.classes.filter(c => c.id !== cid);
+  if (cid === S.classId){ LS.set(LSK('class'), ''); setClass(null); }
+  pickClass(); S.builtKey = ''; scheduleRender();
+  toast('Classe « ' + cl.name + ' » supprimée');
 }
+function deleteClass(){ return deleteClassById(S.classId); }
 
 /* ---------- Événements ---------- */
 document.addEventListener('click', async e => {
@@ -974,7 +1018,7 @@ document.addEventListener('click', async e => {
     return;
   }
   if (a === 'new-class'){ openNewClass(); return; }
-  if (a === 'del-class'){ deleteClass(); return; }
+  if (a === 'del-class'){ deleteClassById(b.dataset.id || S.classId); return; }
 });
 document.addEventListener('change', e => {
   const t = e.target;
