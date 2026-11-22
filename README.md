@@ -26,7 +26,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 - **Historique** : la base garde l'état précédent des documents modifiés ou supprimés (ISMI, BTS) et les 100 dernières versions des données PRE. Restauration possible en cas d'erreur.
 - **Copies de sécurité** : accueil → onglet *Administration* → « Télécharger une sauvegarde complète » (un fichier .json). Dans chaque partie : Réglages → « Télécharger une copie de sécurité » / « Restaurer une sauvegarde… » (accepte aussi les sauvegardes .json de la première version ISMI) ; dans PRE, ses propres boutons « Exporter / Ouvrir une sauvegarde ».
 
-> Dans le bandeau de l'interface PRE, le message « Modifications non enregistrées dans le fichier » concerne uniquement la copie facultative sur l'ordinateur (bouton « Enregistrer le fichier » d'origine). L'enregistrement en ligne est indiqué dans la barre bleue du haut.
+> PRE s'enregistre en ligne comme le reste : chaque champ validé est envoyé dans la seconde. L'indicateur d'enregistrement de l'interface PRE affiche l'état en ligne (« ✓ Enregistré en ligne à … ») ; un champ en cours de saisie est validé et envoyé quand on quitte la page, change d'onglet ou clique sur « Enregistrer ». Le bouton d'origine « Enregistrer le fichier » reste disponible pour garder, en plus, une copie sur l'ordinateur.
 
 ## Mise en route (une seule fois)
 

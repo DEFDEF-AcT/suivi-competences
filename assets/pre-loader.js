@@ -19,10 +19,45 @@ const hhmm = d => String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinu
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let uid = null, base = 0, dirty = false, uploading = false, again = false, conflict = false;
-let seen = null, timer = 0, retryT = 0, lastSaved = null, explained = false;
+let seen = null, timer = 0, retryT = 0, lastSaved = null;
 
 function toast(msg, ms) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, ms || 5000); }
-function status(cls, txt) { const el = $('#preState'); if (!el) return; el.className = 'savestate ' + cls; el.querySelector('span').textContent = txt; }
+function status(cls, txt) {
+  const el = $('#preState');
+  if (el) { el.className = 'savestate ' + cls; el.querySelector('span').textContent = txt; }
+  // Le même état s'affiche dans l'indicateur d'enregistrement de l'interface PRE.
+  hintText = cls === 'ok' ? '✓ ' + txt : cls === 'busy' ? 'Enregistrement en ligne…' : cls === 'err' ? '⚠ ' + txt + ' en ligne : nouvel essai automatique' : txt;
+  hintWarn = cls === 'err';
+  syncHint();
+}
+
+/* ---------- Intégration à l'interface PRE (sans modifier son fichier) ---------- */
+let preWin = null, hintText = '', hintWarn = false;
+// L'indicateur de l'interface (« Modifications non enregistrées dans le fichier ») affiche l'état en ligne.
+function syncHint() {
+  try {
+    const h = preWin && preWin.document.getElementById('savehint'); if (!h) return;
+    if (h.textContent !== hintText) h.textContent = hintText;
+    h.style.color = hintWarn ? '#ffd27a' : '#c9f0c0';
+  } catch (e) { /* cadre fermé */ }
+}
+// Un champ en cours de saisie est validé (l'interface l'enregistre alors, comme quand on change de champ).
+function commitFocused() {
+  try {
+    const d = preWin && preWin.document, a = d && d.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'file') a.blur();
+  } catch (e) {}
+}
+function attachPre(win) {
+  preWin = win;
+  // Avertissement de fermeture : celui de l'interface parle du fichier local ; c'est l'application qui
+  // prévient, seulement s'il reste des modifications à envoyer en ligne.
+  win.addEventListener('beforeunload', e => { e.stopImmediatePropagation(); }, true);
+  const h = win.document.getElementById('savehint');
+  if (h) new win.MutationObserver(() => { if (h.textContent !== hintText) { changed(); syncHint(); } })
+    .observe(h, { childList: true, characterData: true, subtree: true });
+  syncHint();
+}
 function banner(html, cls) { const b = $('#preBanner'); b.innerHTML = html; b.className = 'prebanner' + (cls ? ' ' + cls : ''); b.hidden = !html; }
 const readLocal = () => safe(() => JSON.parse(localStorage.getItem(KEY)));
 const readSync = () => safe(() => JSON.parse(localStorage.getItem(SYNC)));
@@ -65,7 +100,7 @@ function changed() {
   seen = raw; dirty = true; writeSync();
   if (conflict) return;
   status('busy', 'Modifications en attente…');
-  clearTimeout(timer); timer = setTimeout(() => upload(), 1200);
+  clearTimeout(timer); timer = setTimeout(() => upload(), 700);
 }
 async function upload(force) {
   if (conflict && !force) return false;
@@ -91,15 +126,12 @@ async function upload(force) {
   writeSync();
   banner('');
   status(dirty ? 'busy' : 'ok', dirty ? 'Modifications en attente…' : 'Enregistré en ligne à ' + hhmm(lastSaved));
-  if (!explained) {
-    explained = true;
-    toast("Enregistré en ligne. Le message « Modifications non enregistrées dans le fichier » de l'interface PRE ne concerne que la copie facultative sur votre ordinateur.", 9000);
-  }
   if (again || dirty) { again = false; return upload(); }
   return true;
 }
 async function flush() {
   clearTimeout(timer);
+  commitFocused();
   changed();
   while (uploading) await sleep(150);
   if (conflict) return false;
@@ -197,7 +229,7 @@ function showError(msg) {
 
   // 4. Afficher l'interface
   window.__PRE_HTML = html;
-  window.__PRE_READY = win => { A.watchActivity(win); window.__PRE_HTML = null; };
+  window.__PRE_READY = win => { A.watchActivity(win); attachPre(win); window.__PRE_HTML = null; };
   const f = $('#preFrame');
   f.src = 'PRE-VE_Gestion_Formation.html';
   f.hidden = false; $('#preMain').hidden = true;
@@ -210,7 +242,7 @@ function showError(msg) {
   setInterval(changed, 2000);
   setInterval(checkRemote, 45000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); else checkRemote(); });
-  window.addEventListener('beforeunload', e => { changed(); if (dirty) { upload(); e.preventDefault(); e.returnValue = ''; } });
-  window.addEventListener('pagehide', () => { changed(); if (!dirty) clearLocal(); });
+  window.addEventListener('beforeunload', e => { commitFocused(); changed(); if (dirty) { upload(); e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('pagehide', () => { commitFocused(); changed(); if (!dirty) clearLocal(); });
 })();
 })();
