@@ -67,6 +67,7 @@ assets/ref-ismi.js       référentiel ISMI      assets/ref-bts.js  référentie
 assets/pre-loader.js     interface PRE : déchiffrement, données, synchronisation
 assets/pre-ve.bin        interface PRE d'origine, chiffrée
 outils/construire-pre.mjs  chiffre une nouvelle version de l'interface PRE
+outils/version.mjs       à lancer avant chaque publication : numéro de version des fichiers (évite les mélanges dus au cache)
 supabase/migrations/     tables, règles de sécurité, historique
 .github/workflows/keepalive.yml  maintien en activité du projet gratuit
 ```
