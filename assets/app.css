@@ -93,3 +93,8 @@ pre.secret{white-space:pre-wrap; margin:0; padding:10px 12px; font-size:var(--fs
 .hubtabs a[aria-current="page"]{color:var(--navy); border-bottom-color:var(--amber)}
 section[data-pane] > .panels:first-child{margin-top:0}
 section[data-pane="administration"] > .teamcard{margin-top:0}
+.teamcard table td{vertical-align:top}
+.team-acts{width:1%}
+.team-acts > div{display:flex; flex-direction:column; align-items:flex-end; gap:0}
+.team-acts .btn{padding:3px 8px; font-size:var(--fs-xs)}
+.team-mail{word-break:break-all}

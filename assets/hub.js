@@ -195,11 +195,11 @@ async function renderTeam() {
     await loadClasses();
     const r = await callTeam({ action: 'list' });
     TEAM = r.members || [];
-    const rows = TEAM.map(m => `<tr><td><b>${esc(m.display_name)}</b>${m.role === 'admin' ? ' <span class="chip">administrateur</span>' : ''}<br><span class="xs muted">${esc(m.email || '')}</span></td>
+    const rows = TEAM.map(m => `<tr><td><b>${esc(m.display_name)}</b>${m.role === 'admin' ? ' <span class="chip">admin</span>' : ''}<br><span class="xs muted team-mail">${esc(m.email || '')}</span></td>
       <td class="small">${m.role === 'admin' ? 'Tous les droits' : esc(accessSummary(m.access))}${m.must_change_password ? '<br><span class="xs muted">Mot de passe provisoire pas encore changé</span>' : ''}</td>
       <td class="small">${m.last_sign_in_at ? esc(fmt(m.last_sign_in_at)) : '<span class="muted">jamais</span>'}</td>
-      <td class="num">${m.role === 'admin' ? '' : `<button class="btn btn-ghost" type="button" data-team="edit" data-id="${esc(m.user_id)}">Modifier</button><button class="btn btn-ghost" type="button" data-team="reset" data-id="${esc(m.user_id)}">Nouveau mot de passe</button><button class="btn btn-ghost btn-danger" type="button" data-team="remove" data-id="${esc(m.user_id)}">Retirer</button>`}</td></tr>`).join('');
-    box.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Formateur</th><th>Accès</th><th>Dernière connexion</th><th class="num"><span class="sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <td class="team-acts">${m.role === 'admin' ? '' : `<div><button class="btn btn-ghost" type="button" data-team="edit" data-id="${esc(m.user_id)}">Modifier</button><button class="btn btn-ghost" type="button" data-team="reset" data-id="${esc(m.user_id)}">Nouveau mot de passe</button><button class="btn btn-ghost btn-danger" type="button" data-team="remove" data-id="${esc(m.user_id)}">Retirer</button></div>`}</td></tr>`).join('');
+    box.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Formateur</th><th>Accès</th><th>Dernière connexion</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="inline" style="margin-top:12px"><button class="btn btn-primary" type="button" data-team="add">+ Ajouter un collègue</button></div><div id="teamForm"></div>`;
   } catch (e) { box.innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
 }
