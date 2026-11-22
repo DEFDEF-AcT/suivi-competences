@@ -141,6 +141,7 @@ const Auth = {
 
   /* Barre du haut : retour à l'accueil, utilisateur, déconnexion. */
   mountBar(title) {
+    document.querySelectorAll('.appbar').forEach(b => b.remove());
     const bar = document.createElement('div');
     bar.className = 'appbar';
     bar.innerHTML = `<a class="appbar-home" href="index.html" data-auth="home" title="Retour à l'accueil">‹ Accueil</a>

@@ -30,7 +30,8 @@ $('#fLogin').addEventListener('submit', async e => {
   e.preventDefault();
   const email = $('#lEmail').value.trim(), pass = $('#lPass').value;
   if (!email || !pass) { note($('#loginMsg'), 'Saisissez votre identifiant et votre mot de passe.', 'err'); return; }
-  const b = $('#lGo'); b.disabled = true; b.textContent = 'Connexion…';
+  const b = $('#lGo'); if (b.disabled) return;
+  b.disabled = true; b.textContent = 'Connexion…';
   A.setRemember($('#lRemember').checked);
   try {
     const { error } = await sb.auth.signInWithPassword({ email, password: pass });
@@ -66,7 +67,9 @@ $('#mCode').addEventListener('input', e => { if (e.target.value.replace(/\D/g, '
 $('#mCancel').addEventListener('click', async () => { await sb.auth.signOut({ scope: 'local' }); showLogin(); });
 
 /* ---------- Accueil ---------- */
-async function enter() {
+let entering = null;
+function enter() { return entering || (entering = doEnter().finally(() => { entering = null; })); }
+async function doEnter() {
   const s = await A.requireSession();
   const next = A.nextPage();
   if (next) { location.replace(next); return; }

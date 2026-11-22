@@ -1,6 +1,7 @@
 /* Habilitations PRE-VE : ouvre l'interface d'origine, sans la modifier, et enregistre ses données en ligne.
-   - L'interface (fichier HTML qui contient la banque de questions et ses réponses) est stockée dans un
-     espace privé de la base : elle n'est jamais publiée et ne se télécharge qu'après connexion.
+   - L'interface (fichier HTML qui contient la banque de questions et ses réponses) est livrée avec
+     l'application, chiffrée (assets/pre-ve.bin, AES-256-GCM). La clé est dans la base et ne se lit
+     qu'après connexion : sur le site public, le fichier est illisible.
    - À l'ouverture, les dernières données de la base sont placées dans le bloc de données du fichier
      (<script id="preve-data">), exactement comme si vous ouvriez votre fichier enregistré.
    - L'interface enregistre chaque modification dans le navigateur ; cette page la détecte et l'envoie
@@ -9,7 +10,7 @@
 'use strict';
 const A = window.Auth, sb = A.client;
 const KEY = 'preve.etab.v2', SYNC = 'preve.sync';
-const BUCKET = 'interfaces', FILE = 'pre-ve.html';
+const BUNDLE = 'assets/pre-ve.bin', SEED = 'assets/pre-donnees-initiales.bin';
 const RE_DATA = /(<script id="preve-data" type="application\/json">)([\s\S]*?)(<\/script>)/;
 const $ = s => document.querySelector(s);
 const safe = fn => { try { return fn(); } catch (e) { return null; } };
@@ -37,6 +38,23 @@ function embedded(html) {
   const m = html.match(RE_DATA); if (!m) return null;
   const j = safe(() => JSON.parse(m[2].trim()));
   return j && j.state && j.state.version ? j.state : null;
+}
+/* Ouvre un fichier chiffré par outils/construire-pre.mjs : en-tête « PREV1 », identifiant de clé, IV, données. */
+async function openSealed(url) {
+  const r = await fetch(url, { cache: 'no-cache' });
+  if (!r.ok) { const e = new Error('Fichier ' + url + ' introuvable (' + r.status + ').'); e.missing = r.status === 404; throw e; }
+  const u8 = new Uint8Array(await r.arrayBuffer());
+  const td = new TextDecoder();
+  if (td.decode(u8.slice(0, 5)) !== 'PREV1') throw new Error('Format de fichier inconnu : ' + url);
+  const n = u8[5], kid = td.decode(u8.slice(6, 6 + n));
+  const iv = u8.slice(6 + n, 18 + n), ct = u8.slice(18 + n);
+  const { data, error } = await sb.from('app_keys').select('key').eq('name', kid).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Clé de déchiffrement « ' + kid + ' » absente de la base.');
+  const raw = Uint8Array.from(atob(data.key), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
 const newId = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 
@@ -117,31 +135,9 @@ document.addEventListener('click', async e => {
   else if (a === 'save') {
     const ok = await flush();
     toast(ok ? 'Données PRE enregistrées dans la base sécurisée' + (lastSaved ? ' (dernier envoi à ' + hhmm(lastSaved) + ').' : '.') : "Enregistrement impossible pour l'instant : vos modifications restent sur cet appareil.");
-  } else if (a === 'upload') pickInterface();
+  }
 });
 
-/* ---------- Installer ou remplacer le fichier de l'interface ---------- */
-function pickInterface() {
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.html,.htm,text/html';
-  inp.onchange = async () => {
-    const f = inp.files && inp.files[0]; if (!f) return;
-    const txt = await f.text();
-    if (!RE_DATA.test(txt) || !/PRE-VE/.test(txt)) { toast("Ce fichier n'est pas une interface PRE-VE (son bloc de données est introuvable)."); return; }
-    if (!confirm('Enregistrer « ' + f.name + ' » comme interface PRE ?\n\nLe fichier est stocké dans l\'espace privé de la base. Vos données PRE déjà en ligne ne sont pas modifiées.')) return;
-    const ok = await flush();
-    if (!ok && !confirm("Des modifications PRE n'ont pas pu être envoyées. Continuer quand même ?")) return;
-    const { error } = await sb.storage.from(BUCKET).upload(FILE, new Blob([txt], { type: 'text/html' }), { upsert: true, contentType: 'text/html', cacheControl: '0' });
-    if (error) { toast('Envoi impossible : ' + (error.message || error)); return; }
-    toast('Interface PRE enregistrée.');
-    setTimeout(() => { removeFrame(); clearLocal(); location.reload(); }, 700);
-  };
-  inp.click();
-}
-function showMissing() {
-  $('#preMain').innerHTML = `<div class="card empty"><span class="eyebrow">Installation</span><h2>L'interface PRE n'est pas encore installée</h2>
-    <p>Choisissez votre fichier <b>PRE-VE_Gestion_Formation….html</b>. Il sera stocké dans l'espace privé de la base de données, lisible seulement après connexion (il contient la banque de questions et ses réponses). Les données qu'il contient seront reprises à la première ouverture.</p>
-    <button class="btn btn-primary" type="button" data-pre="upload">Choisir le fichier…</button></div>`;
-}
 function showError(msg) {
   $('#preMain').innerHTML = `<div class="card empty"><h2>L'interface PRE ne s'est pas ouverte</h2><p>${esc(msg)}</p><button class="btn btn-primary" type="button" data-pre="reopen">Réessayer</button></div>`;
 }
@@ -152,22 +148,14 @@ function showError(msg) {
   uid = s.user.id;
   const bar = A.mountBar('Habilitations PRE-VE');
   bar.querySelector('#appbarSlot').innerHTML = `<span class="savestate" id="preState" role="status" aria-live="polite"><i aria-hidden="true"></i><span>Connexion…</span></span>
-    <button class="appbar-btn primary" type="button" data-pre="save" title="Envoie les dernières modifications et vérifie qu'elles sont enregistrées en ligne">Enregistrer</button>
-    <button class="appbar-btn" type="button" data-pre="upload" title="Remplacer le fichier de l'interface PRE par une nouvelle version (les données ne changent pas)">Mettre à jour l'interface…</button>`;
+    <button class="appbar-btn primary" type="button" data-pre="save" title="Envoie les dernières modifications et vérifie qu'elles sont enregistrées en ligne">Enregistrer</button>`;
   A.onBeforeLeave(async () => { const ok = await flush(); if (ok) { removeFrame(); clearLocal(); } return ok; });
 
-  // 1. L'interface, depuis l'espace privé
-  const dl = await sb.storage.from(BUCKET).download(FILE);
-  if (dl.error) {
-    const m = String((dl.error && (dl.error.message || dl.error.error)) || '');
-    const st = dl.error.status || dl.error.statusCode;
-    status('', 'Pas d\'interface');
-    if (/not.?found|object/i.test(m) || st === 400 || st === 404 || st === '404') showMissing();
-    else showError("Téléchargement impossible (" + m + "). Vérifiez la connexion Internet.");
-    return;
-  }
-  let html = await dl.data.text();
-  if (!RE_DATA.test(html)) { showError("Le fichier enregistré n'est pas une interface PRE-VE reconnue. Utilisez « Mettre à jour l'interface… »."); return; }
+  // 1. L'interface, livrée chiffrée avec l'application
+  let html;
+  try { html = await openSealed(BUNDLE); }
+  catch (e) { status('err', 'Non ouverte'); showError("L'interface n'a pas pu être déchiffrée (" + (e.message || e) + '). Vérifiez la connexion Internet, puis réessayez.'); return; }
+  if (!RE_DATA.test(html)) { showError("L'interface livrée n'est pas reconnue."); return; }
 
   // 2. Les données
   const { data: row, error } = await sb.from('pre_state').select('state,version,saved_at').eq('id', 'main').maybeSingle();
@@ -186,7 +174,11 @@ function showError(msg) {
   } else if (pending) { state = local; push = true; }
   else {
     state = embedded(html);
-    if (state) { push = true; info = 'Première ouverture : les données contenues dans le fichier PRE ont été copiées dans la base sécurisée.'; }
+    if (!state) {
+      try { const j = JSON.parse(await openSealed(SEED)); state = j && j.state && j.state.version ? j.state : null; }
+      catch (e) { if (!e.missing) { showError('Les données initiales PRE n\'ont pas pu être lues (' + (e.message || e) + ').'); return; } }
+    }
+    if (state) { push = true; info = 'Première ouverture : les données de votre fichier PRE ont été copiées dans la base sécurisée.'; }
   }
 
   // 3. Préparer le document : données dans le bloc prévu par l'interface, copie de travail identique dans le navigateur

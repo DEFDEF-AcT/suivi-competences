@@ -14,7 +14,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 - **Liste blanche** : un compte connecté ne voit rien tant qu'il n'est pas inscrit dans la table `members`.
 - **Double authentification** (code à 6 chiffres sur téléphone) à activer depuis l'accueil ; elle est alors exigée par la base elle-même.
 - **Protection côté serveur** (Row Level Security) sur toutes les tables et sur l'espace de fichiers : la clé publique présente dans le code ne donne accès à rien.
-- **Interface PRE privée** : le fichier contient la banque de questions de l'habilitation et ses réponses. Il n'est **jamais** dans ce dépôt public : il est stocké dans un espace privé de la base et ne se télécharge qu'après connexion. Dans son cadre, toute connexion réseau lui est interdite.
+- **Interface PRE chiffrée** : le fichier contient la banque de questions de l'habilitation et ses réponses. Il est livré avec l'application **chiffré** (`assets/pre-ve.bin`, AES-256-GCM) : sur ce dépôt public il est illisible. La clé est dans la base (table `app_keys`) et ne se lit qu'après connexion. Dans son cadre, toute connexion réseau est interdite à l'interface.
 - **Rien ne reste sur l'appareil** : session fermée avec le navigateur (sauf « Rester connecté » coché), déconnexion automatique après 60 min d'inactivité, données de travail effacées à la déconnexion.
 - Bibliothèques hébergées avec l'application (aucun script tiers), politique de sécurité du contenu (CSP) stricte, base de données hébergée à Paris (Supabase, région eu-west-3).
 
@@ -38,14 +38,14 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
    ```
 3. **Fermer les inscriptions** — *Authentication* → *Sign In / Providers* → désactiver *Allow new users to sign up*.
 4. **Se connecter** à l'application, puis sur l'accueil : *Double authentification* → *Activer*.
-5. **Installer l'interface PRE** — ouvrir *Habilitations PRE-VE* → *Choisir le fichier…* → votre fichier `PRE-VE_Gestion_Formation_Formateur Niv2.html`. Les données qu'il contient sont reprises automatiquement. Si votre navigateur contient des données PRE plus récentes que ce fichier : dans votre ancien fichier, *Exporter la sauvegarde*, puis dans l'application *Ouvrir une sauvegarde*.
+5. **Ouvrir *Habilitations PRE-VE*** — l'interface est déjà intégrée. À la toute première ouverture, les données de votre fichier PRE sont copiées dans la base. Si votre navigateur contient des données PRE plus récentes que ce fichier : dans votre ancien fichier, *Exporter la sauvegarde*, puis dans l'application *Ouvrir une sauvegarde*.
 
 ## Gestion courante
 
 - **Ajouter un collègue** : étapes 1 et 2 avec son adresse.
 - **Retirer un accès** : `delete from public.members where user_id = (select id from auth.users where email = '…');` puis supprimer l'utilisateur dans *Authentication* → *Users*.
 - **Mot de passe oublié** : *Authentication* → *Users* → l'utilisateur → définir un nouveau mot de passe. Téléphone perdu (double authentification) : même écran → supprimer le facteur MFA.
-- **Nouvelle version de l'interface PRE** : dans PRE, barre du haut → *Mettre à jour l'interface…* (les données ne changent pas).
+- **Nouvelle version de l'interface PRE** : `node outils/construire-pre.mjs "chemin/du/fichier.html"` chiffre la nouvelle version avec une nouvelle clé (écrite dans `outils/cles.local.json`, jamais publié). Ajouter cette clé à la table `app_keys` **avant** de publier `assets/pre-ve.bin`. Les données ne changent pas.
 - **Projet gratuit** : Supabase met en pause un projet gratuit inactif 7 jours ; l'action GitHub `keepalive.yml` l'appelle deux fois par semaine pour l'éviter. Si le projet est en pause malgré tout : tableau de bord → *Restore project*.
 
 ## Point d'attention RGPD
@@ -64,7 +64,9 @@ assets/auth.js           session, déconnexion automatique, barre du haut
 assets/store.js          lecture/écriture des évaluations dans la base, direct entre appareils
 assets/eval-app.js       moteur des évaluations (issu de la première mouture ISMI)
 assets/ref-ismi.js       référentiel ISMI      assets/ref-bts.js  référentiel BTS MV 2027
-assets/pre-loader.js     interface PRE : téléchargement privé, données, synchronisation
+assets/pre-loader.js     interface PRE : déchiffrement, données, synchronisation
+assets/pre-ve.bin        interface PRE d'origine, chiffrée
+outils/construire-pre.mjs  chiffre une nouvelle version de l'interface PRE
 supabase/migrations/     tables, règles de sécurité, historique
 .github/workflows/keepalive.yml  maintien en activité du projet gratuit
 ```
