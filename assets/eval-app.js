@@ -426,6 +426,7 @@ function parseRoute(){
   return {view:'evaluations', id:null};
 }
 function render(){
+  document.body.classList.toggle('atelier-mode', S.phase === 'ready' && S.route.view === 'progression');
   renderClassSelect(); renderTabs(); renderBanner(); renderMain();
   if (S.panel) updatePanel();
   renderSaveState();
@@ -809,14 +810,11 @@ function ensureAtelier(){
 }
 VIEWS.progression = {
   build(){
-    return `<p class="hint" id="atHint"></p>
-      <div id="atMsg" class="card empty"><h2>Ouverture de la progression…</h2><p>Déchiffrement de l'artefact « Atelier BTS MV ».</p></div>
+    return `<div id="atMsg" class="card empty atelier-msg"><h2>Ouverture de la progression…</h2><p>Déchiffrement de l'artefact « Atelier BTS MV ».</p></div>
       <iframe id="atelierFrame" class="atelier-frame" title="Progression de l'atelier BTS MV" hidden></iframe>`;
   },
   update(){
     const f = $('#atelierFrame'); if (!f) return;
-    const cl = S.classes.find(c => c.id === S.classId);
-    $('#atHint').innerHTML = `La progression de l'équipe, telle quelle. Dans le <b>calendrier</b>, le détail de chaque module montre les évaluations de la classe <b>${esc(cl ? cl.name : '')}</b>, un bouton « Évaluer » en face de chaque TP et l'analyse du module.`;
     if (!atelierHTML){
       if (S.progErr) $('#atMsg').innerHTML = `<h2>La progression n'a pas pu s'ouvrir</h2><p>${esc(S.progErr)}</p>`;
       else ensureAtelier().catch(() => {});

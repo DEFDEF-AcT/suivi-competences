@@ -153,9 +153,13 @@ details.polegroup[open] > summary{border-bottom:1px solid var(--line); margin-bo
 .alert-info{background:#EEF2F8; color:var(--navy)}
 th.pole-1, th.pole-2, th.pole-3, th.pole-4{color:var(--pole)}
 .progrow .fld{flex:1 1 240px}
-@media (max-width:720px){ 
 /* Onglet Progression : l'artefact dans son cadre, puis l'analyse dans le même esprit */
-.atelier-frame{display:block; width:100%; min-height:480px; border:1px solid var(--line); border-radius:12px; background:#fff}
+.atelier-frame{display:block; width:100%; min-height:480px; border:0; background:#fff}
+/* Onglet Progression : l'artefact occupe toute la largeur, sans cadre, comme le fichier ouvert seul */
+body.atelier-mode{background:#fff}
+body.atelier-mode .top{position:static}
+body.atelier-mode #main{max-width:none; padding:0}
+body.atelier-mode .atelier-msg{margin:22px max(16px,3vw)}
 .atelier-style{font-family:Barlow,Arial,sans-serif}
 .atelier-style h2, .atelier-style .stat b{font-family:'Barlow Condensed',Arial,sans-serif}
 .atelier-style h2{font-size:1.5rem}
