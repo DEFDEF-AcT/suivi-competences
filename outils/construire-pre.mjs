@@ -10,7 +10,7 @@
      assets/pre-ve.bin                    l'interface, son bloc de données vidé (les données sont dans la base)
      assets/pre-donnees-initiales.bin     (avec --donnees) les données du fichier, reprises à la toute première ouverture
      outils/cles.local.json               les clés à enregistrer dans la base (fichier jamais publié) */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { randomBytes, createCipheriv } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
@@ -45,5 +45,7 @@ if (process.argv.includes('--donnees')) {
   keys['pre-donnees-' + stamp] = d.key;
   console.log('assets/pre-donnees-initiales.bin : ' + d.file.length + ' octets');
 }
-writeFileSync(join(ROOT, 'outils/cles.local.json'), JSON.stringify(keys, null, 1));
+const kf = join(ROOT, 'outils/cles.local.json');
+const all = existsSync(kf) ? JSON.parse(readFileSync(kf, 'utf8')) : {};
+writeFileSync(kf, JSON.stringify({ ...all, ...keys }, null, 1));
 console.log('Clés écrites dans outils/cles.local.json : ' + Object.keys(keys).join(', '));
