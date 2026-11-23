@@ -8,6 +8,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 | **Évaluations BTS MV** | Même moteur, référentiel 2027 (arrêté du 10 décembre 2025). Les 4 pôles ne sont pas dissociés : chaque évaluation indique son **pôle dominant** (demandé à la création ; ses critères sont positionnés, ceux des autres pôles peuvent être mobilisés), la synthèse et la fiche étudiant présentent les 4 pôles et leurs 11 compétences ensemble. Une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Statuts Abordée / Mobilisée / Fortement mobilisée ; alerte au-delà de 3 compétences FM par activité. |
 | **Progression BTS** | Onglet *Progression* du BTS : l'artefact « Atelier BTS MV » de l'équipe, **tel quel** (calendrier, travaux pratiques, compétences, AFSM et physique, organisation), livré chiffré comme l'interface PRE. Dans le détail de chaque module du calendrier : un bouton « Évaluer » en face de chaque TP (évaluation pré-remplie : module, TP, pôle dominant, critères des compétences FM) et un bloc « Évaluations de la classe » (prévu / évalué par compétence, saisie, moyenne, part acquise). *Analyse détaillée du module* : compétences, étudiants, TP, alertes de cohérence avec la matrice. Nouvelle version de l'artefact : BTS → Réglages → *Mettre à jour la progression…* |
 | **Habilitations PRE-VE** | L'interface `PRE-VE_Gestion_Formation…html`, **sans aucune modification**, avec ses données enregistrées en ligne. |
+| **Test PRE multi-postes** | Onglet *Test théorique* de PRE → carte *Passation multi-postes* : vous ouvrez une séance pour les stagiaires cochés, un **code de séance** s'affiche (bouton *Afficher le code en grand* pour le vidéoprojecteur). Chaque stagiaire ouvre `passation.html` (lien « Stagiaire : passer le test théorique PRE » sous la connexion) sur n'importe quel ordinateur, tablette ou téléphone, saisit le code, son nom et sa date de naissance, et répond. Chaque réponse est enregistrée aussitôt dans **sa** copie ; le suivi est en direct (connectés, avancement, copies remises, sorties de la page). Les copies remises arrivent seules dans PRE et se valident avec *Résultats et validation*. *+ 15 min* prolonge ; *Clôturer et ramasser les copies* ramasse les copies commencées en l'état et annule le test des absents. |
 
 ## Sécurité
 
@@ -47,8 +48,9 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 - **Collègues** : accueil → onglet *⚙ Administration* (visible de l'administrateur seul) → *Équipe* → *Ajouter un collègue*. Vous choisissez son nom, son adresse (identifiant) et ses accès : ISMI et/ou BTS MV (toutes les classes ou seulement certaines), PRE. Un mot de passe provisoire s'affiche une seule fois : transmettez-le par un moyen sûr ; le collègue choisit son propre mot de passe à la première connexion. *Modifier*, *Nouveau mot de passe* (remet aussi à zéro sa double authentification) et *Retirer* sont dans la même liste.
 - **Droits d'un collègue** (appliqués par la base, pas seulement par l'affichage) : il ne voit que les parties et classes attribuées ; il crée ses évaluations et peut les modifier ou les supprimer ; il positionne et note les étudiants sur toutes les évaluations de ses classes, y compris les vôtres, sans pouvoir modifier ni supprimer les vôtres ; classes, étudiants, barème, restauration et historique restent réservés à l'administrateur. L'accès PRE est complet ou nul (l'interface PRE ne distingue pas les formateurs).
 - **Mot de passe oublié** : *Authentication* → *Users* → l'utilisateur → définir un nouveau mot de passe. Téléphone perdu (double authentification) : même écran → supprimer le facteur MFA.
-- **Nombre de questions du test PRE** : onglet *Test théorique* → carte *Nombre de questions du test* (par domaine ; fondamentales toujours incluses ; total par stagiaire affiché). C'est le seul ajout à l'interface PRE d'origine.
-- **Source de l'interface PRE en ligne** : `outils/sources/PRE-VE_Gestion_Formation_Formateur Niv2.html` (copie avec la carte ci-dessus, jamais publiée). Partir de ce fichier pour toute nouvelle version.
+- **Nombre de questions du test PRE** : onglet *Test théorique* → carte *Nombre de questions du test* (par domaine ; fondamentales toujours incluses ; total par stagiaire affiché).
+- **Passation multi-postes** : même onglet, carte *Passation multi-postes*. Ces deux cartes sont les seuls ajouts à l'interface PRE d'origine (et la mention « séance multi-postes en cours » dans le tableau des stagiaires) ; la seconde n'apparaît que dans l'application en ligne. Sécurité : les postes des stagiaires n'ont pas de compte ; ils reçoivent leurs questions et leurs choix, **jamais le corrigé** (la correction se fait dans PRE) ; le code (6 caractères) ne sert qu'avec le nom et la date de naissance du stagiaire, 60 essais manqués au plus par réseau et par 10 minutes ; après la clôture, les sujets sont effacés en ligne. Une date de naissance manquante dans la fiche empêche le stagiaire d'entrer.
+- **Source de l'interface PRE en ligne** : `outils/sources/PRE-VE_Gestion_Formation_Formateur Niv2.html` (copie avec ces ajouts, jamais publiée). Partir de ce fichier pour toute nouvelle version.
 - **Nouvelle version de l'interface PRE** : `node outils/construire-pre.mjs "chemin/du/fichier.html"` chiffre la nouvelle version avec une nouvelle clé (écrite dans `outils/cles.local.json`, jamais publié). Ajouter cette clé à la table `app_keys` **avant** de publier `assets/pre-ve.bin`. Les données ne changent pas.
 - **Projet gratuit** : Supabase met en pause un projet gratuit inactif 7 jours ; l'action GitHub `keepalive.yml` l'appelle deux fois par semaine pour l'éviter. Si le projet est en pause malgré tout : tableau de bord → *Restore project*.
 
@@ -62,13 +64,15 @@ L'application traite des données personnelles d'étudiants (noms, positionnemen
 index.html               connexion, double authentification, accueil, compte
 ismi.html  bts.html      évaluations (même moteur, référentiels différents)
 pre.html                 ouverture de l'interface PRE et enregistrement en ligne
+passation.html           test théorique PRE sur le poste du stagiaire (code de séance, sans compte)
 PRE-VE_Gestion_Formation.html   cadre vide où l'interface PRE d'origine est déposée
 assets/config.js         adresse et clé publique de la base
 assets/auth.js           session, déconnexion automatique, barre du haut
 assets/store.js          lecture/écriture des évaluations dans la base, direct entre appareils
 assets/eval-app.js       moteur des évaluations (issu de la première mouture ISMI)
 assets/ref-ismi.js       référentiel ISMI      assets/ref-bts.js  référentiel BTS MV 2027
-assets/pre-loader.js     interface PRE : déchiffrement, données, synchronisation
+assets/pre-loader.js     interface PRE : déchiffrement, données, synchronisation, séances multi-postes
+assets/passation.js      poste du stagiaire : sujet, réponses enregistrées à chaque clic, remise
 assets/pre-ve.bin        interface PRE d'origine, chiffrée
 outils/construire-pre.mjs  chiffre une nouvelle version de l'interface PRE
 outils/construire-progression.mjs  chiffre l'artefact de progression du BTS (assets/progression-atelier.bin)

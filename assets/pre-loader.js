@@ -174,6 +174,35 @@ function showError(msg) {
   $('#preMain').innerHTML = `<div class="card empty"><h2>L'interface PRE ne s'est pas ouverte</h2><p>${esc(msg)}</p><button class="btn btn-primary" type="button" data-pre="reopen">Réessayer</button></div>`;
 }
 
+/* ---------- Passation multi-postes : services demandés par l'interface PRE ----------
+   L'interface n'a aucun accès réseau (cadre isolé) : elle appelle ces fonctions de la page,
+   qui parlent à la base avec la session du formateur. Les postes des stagiaires, eux, passent
+   par passation.html, sans compte, et ne reçoivent jamais le corrigé. */
+function erreurSeance(error) {
+  const m = (error && (error.message || error.details)) || String(error || '');
+  if (error && (error.code === '42501' || /pre_acces|jwt/i.test(m))) { A.verify(); return new Error('accès refusé : reconnectez-vous'); }
+  if (/pre_duree/.test(m)) return new Error('durée de validité incorrecte');
+  if (/pre_copies/.test(m)) return new Error('aucun stagiaire choisi');
+  if (/pre_images/.test(m)) return new Error('illustrations trop volumineuses');
+  if (/pre_seance_close/.test(m)) return new Error('la séance est déjà clôturée');
+  if (/pre_seance_inconnue/.test(m)) return new Error('séance introuvable');
+  if (/fetch|network|load failed/i.test(m)) return new Error('connexion impossible');
+  return new Error(m || 'erreur inconnue');
+}
+async function rpcSeance(fn, args) {
+  const { data, error } = await sb.rpc(fn, args);
+  if (error) throw erreurSeance(error);
+  return data;
+}
+window.PRE_HOTE = {
+  url: new URL('passation.html', location.href).href,
+  etat: () => rpcSeance('pre_seances_etat'),
+  creer: p => rpcSeance('pre_seance_creer', { p_session: p.session, p_intitule: p.intitule, p_minutes: p.minutes, p_copies: p.copies, p_images: p.images }),
+  copie: id => rpcSeance('pre_copie_lire', { p_id: id }),
+  action: (id, action, minutes) => rpcSeance('pre_seance_action', { p_id: id, p_action: action, p_minutes: minutes || null }),
+  flush: () => flush()
+};
+
 /* ---------- Ouverture ---------- */
 (async () => {
   const s = await A.requireSession({ app: 'pre' });
