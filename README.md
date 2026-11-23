@@ -6,7 +6,7 @@ Application web de suivi de l'acquisition des compétences, accessible depuis un
 |---|---|
 | **Évaluations ISMI** | Blocs 1 et 3 (référentiel GIP-FCIP de Toulouse) : grilles MI à TBM, fiche de saisie par étudiant, note indicative, profil de compétences, synthèse de classe, export Excel. Reprise de la première mouture `Evaluations_ISMI.html`. |
 | **Évaluations BTS MV** | Même moteur, référentiel 2027 (arrêté du 10 décembre 2025). Les 4 pôles ne sont pas dissociés : chaque évaluation indique son **pôle dominant** (demandé à la création ; ses critères sont positionnés, ceux des autres pôles peuvent être mobilisés), la synthèse et la fiche étudiant présentent les 4 pôles et leurs 11 compétences ensemble. Une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Statuts Abordée / Mobilisée / Fortement mobilisée ; alerte au-delà de 3 compétences FM par activité. |
-| **Progression BTS** | Onglet *Progression* du BTS : modules M1 à M15, activité par activité (TPM, ateliers, OC), avec les compétences prévues (matrice A / M / FM). « + Évaluer » sur une activité crée l'évaluation pré-remplie (module, activité, pôle dominant, critères des compétences FM). *Analyse du module* : prévu et évalué par compétence, répartition des niveaux, part acquise, étudiants, activités, alertes de cohérence avec la progression. La progression est stockée dans la base (document privé) ; mise à jour : Réglages → *Mettre à jour la progression…* avec le fichier « Progression Atelier BTS MV.html ». |
+| **Progression BTS** | Onglet *Progression* du BTS : l'artefact « Atelier BTS MV » de l'équipe, **tel quel** (calendrier, travaux pratiques, compétences, AFSM et physique, organisation), livré chiffré comme l'interface PRE. Dans le détail de chaque module du calendrier : un bouton « Évaluer » en face de chaque TP (évaluation pré-remplie : module, TP, pôle dominant, critères des compétences FM) et un bloc « Évaluations de la classe » (prévu / évalué par compétence, saisie, moyenne, part acquise). *Analyse détaillée du module* : compétences, étudiants, TP, alertes de cohérence avec la matrice. Nouvelle version de l'artefact : BTS → Réglages → *Mettre à jour la progression…* |
 | **Habilitations PRE-VE** | L'interface `PRE-VE_Gestion_Formation…html`, **sans aucune modification**, avec ses données enregistrées en ligne. |
 
 ## Sécurité
@@ -69,6 +69,8 @@ assets/ref-ismi.js       référentiel ISMI      assets/ref-bts.js  référentie
 assets/pre-loader.js     interface PRE : déchiffrement, données, synchronisation
 assets/pre-ve.bin        interface PRE d'origine, chiffrée
 outils/construire-pre.mjs  chiffre une nouvelle version de l'interface PRE
+outils/construire-progression.mjs  chiffre l'artefact de progression du BTS (assets/progression-atelier.bin)
+progression-atelier.html  cadre vide où l'artefact de progression d'origine est déposé
 outils/version.mjs       à lancer avant chaque publication : numéro de version des fichiers (évite les mélanges dus au cache)
 supabase/migrations/     tables, règles de sécurité, historique
 .github/workflows/keepalive.yml  maintien en activité du projet gratuit

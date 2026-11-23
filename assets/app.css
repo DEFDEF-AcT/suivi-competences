@@ -131,26 +131,16 @@ details.polegroup[open] > summary{border-bottom:1px solid var(--line); margin-bo
 .rd-band.pole-1, .rd-band.pole-2, .rd-band.pole-3, .rd-band.pole-4{stroke:var(--pole)}
 
 /* BTS : progression et analyse par module */
-.st{display:inline-grid; place-items:center; min-width:26px; padding:1px 5px; border-radius:5px; font-size:var(--fs-xs); font-weight:800}
-.st-A{background:#EEF2F6; color:#4B5A6B; border:1px solid #C9D3DD}
-.st-M{background:#FFF3D6; color:#7A5300; border:1px solid #E8C877}
-.st-FM{background:#1F4E79; color:#fff; border:1px solid #1F4E79}
+.st{display:inline-grid; place-items:center; min-width:28px; padding:1px 6px; border-radius:5px; font:600 12px/1.3 'IBM Plex Mono',ui-monospace,monospace; border:1px solid}
+.st-A{background:#DAE9F7; border-color:#9fc3e6; color:#1F4E79}
+.st-M{background:#EFCFFF; border-color:#cf9de6; color:#57207a}
+.st-FM{background:#D9F2D0; border-color:#8DD873; color:#1f4d17}
 .st-none{color:var(--ink-3)}
 .planitem{display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:6px; background:var(--pole-bg); color:var(--pole); font-size:var(--fs-xs); font-weight:700; white-space:nowrap}
 .planline{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 10px}
 .planbadge{margin-left:auto; font-size:var(--fs-xs); color:var(--ink-3)}
 .compgroup{display:flex; align-items:center; gap:6px}
 .chip.modchip{background:#FFF6D6; color:#6E4F00; border:1px solid #E8D38A}
-details.modcard{margin:10px 0; padding:0}
-details.modcard > summary{cursor:pointer; display:flex; align-items:center; gap:12px; padding:12px 16px; list-style:none}
-details.modcard > summary::-webkit-details-marker{display:none}
-details.modcard > summary::before{content:"▸"; color:var(--ink-3); font-size:.9rem}
-details.modcard[open] > summary::before{content:"▾"}
-details.modcard[open] > summary{border-bottom:1px solid var(--line)}
-.modcode{display:inline-grid; place-items:center; min-width:62px; padding:4px 8px; border-radius:8px; background:var(--navy); color:#fff; font-weight:800; font-size:var(--fs-sm)}
-.modtitle{display:flex; flex-direction:column; min-width:0; flex:1}
-.modstat{font-size:var(--fs-xs); color:var(--ink-2); font-weight:700; white-space:nowrap}
-.modbody{padding:12px 16px 16px}
 .acttable td{vertical-align:top}
 .actcode{font-weight:800; color:var(--navy); white-space:nowrap}
 .themes{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px}
@@ -163,4 +153,15 @@ details.modcard[open] > summary{border-bottom:1px solid var(--line)}
 .alert-info{background:#EEF2F8; color:var(--navy)}
 th.pole-1, th.pole-2, th.pole-3, th.pole-4{color:var(--pole)}
 .progrow .fld{flex:1 1 240px}
-@media (max-width:720px){ details.modcard > summary{flex-wrap:wrap} .modstat{width:100%} }
+@media (max-width:720px){ 
+/* Onglet Progression : l'artefact dans son cadre, puis l'analyse dans le même esprit */
+.atelier-frame{display:block; width:100%; min-height:480px; border:1px solid var(--line); border-radius:12px; background:#fff}
+.atelier-style{font-family:Barlow,Arial,sans-serif}
+.atelier-style h2, .atelier-style .stat b{font-family:'Barlow Condensed',Arial,sans-serif}
+.atelier-style h2{font-size:1.5rem}
+.md-head{border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:6px 0 14px}
+.md-head > header{background:var(--uc); color:#1d232b; padding:12px 16px; display:flex; gap:14px; align-items:center}
+.md-head > header.dk{color:#fff}
+.md-head .code{font:700 34px/1 'Barlow Condensed',Arial,sans-serif; white-space:nowrap}
+.md-head b{display:block; font:700 clamp(22px,2.6vw,30px)/1.05 'Barlow Condensed',Arial,sans-serif}
+.md-head small{font-size:14.5px; font-weight:500}

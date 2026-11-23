@@ -66,7 +66,7 @@ const cmpFr = (a, b) => String(a).localeCompare(String(b), 'fr', {sensitivity:'b
 
 /* ---------- État ---------- */
 const S = {
-  prog:null, progYear:LS.get(LSK('progyear')) || 'all', openMods:new Set(), phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true, admin:true, names:{},
+  prog:null, progErr:null, atHash:'', phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true, admin:true, names:{},
   classes:[], classesLoaded:false, classId:null, config:{points:{...DEFAULT_POINTS}},
   students:[], evals:[], results:new Map(), loaded:{students:false, evals:false, results:false},
   unsubClass:[], route:{view:'evaluations', id:null}, builtKey:'', panel:null, editing:null, slow:false,
@@ -372,7 +372,7 @@ function subscribeGlobal(){
     S.config = snap.exists ? {points:{...DEFAULT_POINTS}, ...snap.data()} : {points:{...DEFAULT_POINTS}};
     scheduleRender();
   }, err => console.error(err));
-  if (CFG.progression) S.db.doc('config/progression').onSnapshot(snap => { S.prog = snap.exists ? snap.data() : null; scheduleRender(); }, err => console.error(err));
+  if (CFG.progression) S.db.doc('config/progression').onSnapshot(snap => { progDoc = snap.exists ? snap.data() : null; ensureAtelier().catch(() => {}); }, err => console.error(err));
 }
 function pickClass(){
   let id = S.classId;
@@ -736,7 +736,7 @@ function actOptions(mod, actv){
   return `<option value="">${u ? '— Module entier ou autre activité —' : '—'}</option>` + (u ? (u.tp || []).map(t => `<option value="${esc(actKey(t))}"${actKey(t) === actv ? ' selected' : ''}>${esc(t.c ? t.c + ' · ' : '')}${esc(t.t)}</option>`).join('') : '');
 }
 async function importProgression(){
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.html,.htm,.json';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.html,.htm';
   inp.onchange = async () => {
     const f = inp.files && inp.files[0]; if (!f) return;
     const txt = await f.text();
@@ -746,14 +746,9 @@ async function importProgression(){
       d = JSON.parse(m ? m[1] : txt);
     } catch(e){ toast("Fichier illisible : choisissez « Progression Atelier BTS MV.html »."); return; }
     if (!d || !Array.isArray(d.units) || !Array.isArray(d.cols) || !d.mx){ toast("Ce fichier ne contient pas de progression reconnue."); return; }
-    const per = {};
-    Object.entries(d.Y || {}).forEach(([y, Y]) => (Y.per || []).forEach(p => { per[p.k] = {lab:p.lab, mo:p.mo || '', ph:p.ph || '', y:Number(y)}; }));
-    const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] != null && o[k] !== '').map(k => [k, o[k]]));
-    const data = {source:f.name.replace(/\.[^.]+$/, ''), importedAt:new Date().toISOString(), per,
-      units:d.units.map(u => ({...pick(u, ['id','code','short','title','dur','pk','y','intent','ev','jal','mat','pl']), tp:(u.tp || []).map(t => pick(t, ['c','t','d','th']))})),
-      cols:d.cols.map(c => ({k:c.k, u:c.u, y:c.y})), mx:d.mx, themes:d.themes || []};
-    if (!confirm(`Remplacer la progression par celle du fichier (${data.units.length} unités, ${data.units.reduce((n, u) => n + u.tp.length, 0)} activités) ?`)) return;
-    await setDoc('config/progression', data);
+    if (!/<script id="data" type="application\/json">/.test(txt)){ toast("Choisissez le fichier HTML de l'artefact « Atelier BTS MV »."); return; }
+    if (!confirm(`Remplacer la progression par celle du fichier « ${f.name} » (${d.units.length} unités) ?\n\nL'artefact est enregistré tel quel dans la base ; les évaluations déjà reliées aux modules sont conservées.`)) return;
+    await setDoc('config/progression', {source:f.name.replace(/\.[^.]+$/, ''), importedAt:new Date().toISOString(), html:txt});
     toast('Progression mise à jour.');
   };
   inp.click();
@@ -789,68 +784,156 @@ function alertsFor(mod, code, K){
 }
 const distBar = cnt => { const tot = LEVELS.reduce((n, k) => n + cnt[k], 0); return tot ? `<div class="seg-bar" data-tip="${esc(LEVELS.map(k => k + ' : ' + cnt[k]).join(' · '))}">${LEVELS.filter(k => cnt[k]).map(k => `<i class="f-${k}" style="flex:${cnt[k]}"></i>`).join('')}</div>` : '<span class="muted small">—</span>'; };
 
+/* ---------- Onglet Progression : l'artefact « Atelier BTS MV », tel quel ---------- */
+let progDoc = null, atelierHTML = null, atelierSrc = '', atelierLoad = null, atWin = null;
+function progFromHtml(html, meta){
+  const mm = html.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!mm) throw new Error("Le fichier ne contient pas de progression reconnue.");
+  const D = JSON.parse(mm[1]);
+  const per = {};
+  Object.entries(D.Y || {}).forEach(([y, Y]) => (Y.per || []).forEach(x => { per[x.k] = {lab:x.lab, mo:x.mo || '', ph:x.ph || '', y:Number(y)}; }));
+  return {source:(meta && meta.source) || 'Progression Atelier BTS MV', importedAt:(meta && meta.importedAt) || null, per,
+    units:D.units || [], cols:D.cols || [], mx:D.mx || {}, themes:D.themes || [], poles:D.poles || {}};
+}
+function ensureAtelier(){
+  const src = progDoc && progDoc.html ? 'base:' + (progDoc.importedAt || '') : 'fichier';
+  if (src === atelierSrc && (atelierHTML || atelierLoad)) return atelierLoad || Promise.resolve(atelierHTML);
+  atelierSrc = src;
+  const load = progDoc && progDoc.html ? Promise.resolve(progDoc.html)
+    : (window.openSealed ? window.openSealed(CFG.progressionBundle) : Promise.reject(new Error('Déchiffrement indisponible.')));
+  atelierLoad = load.then(html => {
+    if (atelierSrc !== src) return atelierHTML;
+    S.prog = progFromHtml(html, progDoc); atelierHTML = html; S.progErr = null; atelierLoad = null; scheduleRender(); return html;
+  }).catch(e => { atelierLoad = null; S.progErr = e.message || String(e); scheduleRender(); throw e; });
+  return atelierLoad;
+}
 VIEWS.progression = {
   build(){
-    return `<div class="vhead"><div class="grow"><h1>Progression — modules et activités</h1><div class="meta" id="pgMeta"></div></div>
-      <div class="actions"><div class="blocs" role="group" aria-label="Année">${[['1', 'BTS 1'], ['2', 'BTS 2'], ['all', 'Les deux années']].map(([y, l]) => `<button type="button" class="blocbtn" data-act="prog-year" data-y="${y}" aria-pressed="false">${l}</button>`).join('')}</div></div></div>
-      <div id="pgBody"></div>`;
+    return `<p class="hint" id="atHint"></p>
+      <div id="atMsg" class="card empty"><h2>Ouverture de la progression…</h2><p>Déchiffrement de l'artefact « Atelier BTS MV ».</p></div>
+      <iframe id="atelierFrame" class="atelier-frame" title="Progression de l'atelier BTS MV" hidden></iframe>`;
   },
   update(){
-    document.querySelectorAll('[data-act="prog-year"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.y === S.progYear)));
-    const body = $('#pgBody');
-    if (!S.prog){ body.innerHTML = `<div class="card empty"><h2>Pas encore de progression</h2><p>${S.admin ? 'Importez votre fichier « Progression Atelier BTS MV.html » dans l\'onglet Réglages.' : 'L\'administrateur n\'a pas encore importé la progression.'}</p></div>`; return; }
-    const units = S.prog.units.filter(u => S.progYear === 'all' || String(u.y) === S.progYear);
-    const mods = units.filter(u => (u.tp && u.tp.length) || progCol(u.id) >= 0);
-    const evCount = mods.reduce((n, u) => n + moduleEvals(u.id).length, 0);
-    $('#pgMeta').textContent = `${mods.length} modules · ${mods.reduce((n, u) => n + (u.tp || []).length, 0)} activités · ${evCount} évaluation${evCount > 1 ? 's' : ''} reliée${evCount > 1 ? 's' : ''} dans cette classe`;
-    const seuil = seuilLevel();
-    const overview = mods.map(u => {
-      const A = moduleAnalysis(u.id); const tp = u.tp || [];
-      const evalued = tp.filter(t => A.evs.some(ev => ev.activity === actKey(t))).length;
-      const fm = comp11().filter(a => planned(u.id, a.code) === 'FM');
-      const fmPos = fm.reduce((n, a) => n + A.comps[a.code].n, 0), fmAcq = fm.reduce((n, a) => n + A.comps[a.code].acq, 0);
-      return `<tr><td class="stick"><a href="#module-${esc(u.id)}"><b>${esc(u.code)}</b></a> <span class="small">${esc(u.short || u.title)}</span></td><td class="small">${esc(perLabel(u))}</td>
-        <td class="ctr">${fm.map(a => `<span class="planitem pole-${a.unit}">${esc(a.code)}</span>`).join(' ') || '<span class="muted small">—</span>'}</td>
-        <td class="num">${A.evs.length}</td><td class="num">${tp.length ? evalued + ' / ' + tp.length : '—'}</td>
-        <td class="num">${A.total ? Math.round(A.done / A.total * 100) + ' %' : '—'}</td>
-        <td class="num"><b>${fmtNote(avgOf(A.notes.filter(n => n != null)))}</b></td>
-        <td class="num">${fmPos ? Math.round(fmAcq / fmPos * 100) + ' %' : '—'}</td>
-        <td class="num"><a href="#module-${esc(u.id)}">Analyse →</a></td></tr>`;
-    }).join('');
-    const cards = units.map(u => {
-      const evs = moduleEvals(u.id), tp = u.tp || [], evaluable = tp.length || progCol(u.id) >= 0;
-      const open = S.openMods.has(u.id);
-      const plan = comp11().map(a => ({a, st:planned(u.id, a.code)})).filter(x => x.st);
-      const evLink = ev => { const st = evStats(ev); return `<a class="evlink" href="#eval-${esc(ev.id)}" title="${esc(ev.title)}">${esc(ev.title.length > 34 ? ev.title.slice(0, 32) + '…' : ev.title)} <span class="muted">· ${st.done}/${st.total} · ${fmtNote(st.avg)}</span></a>`; };
-      const rows = tp.map(t => {
-        const linked = evs.filter(ev => ev.activity === actKey(t));
-        return `<tr><td class="actcode">${esc(t.c || '')}</td><td><b>${esc(t.t)}</b>${t.d ? `<br><span class="xs muted">${esc(t.d)}</span>` : ''}${(t.th || []).length ? `<div class="themes">${t.th.map(k => `<span class="chip">${esc(themeName(k))}</span>`).join('')}</div>` : ''}</td>
-          <td>${linked.map(evLink).join('') || '<span class="muted small">Pas encore évaluée</span>'}</td>
-          <td class="num">${S.canWrite ? `<button class="btn btn-ghost" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="${esc(actKey(t))}">+ Évaluer</button>` : ''}</td></tr>`;
-      }).join('');
-      const other = evs.filter(ev => !ev.activity || !tp.some(t => actKey(t) === ev.activity));
-      return `<details class="card modcard" data-mod="${esc(u.id)}"${open ? ' open' : ''}><summary>
-          <span class="modcode">${esc(u.code)}</span><span class="modtitle"><b>${esc(u.title)}</b><span class="xs muted">${esc(perLabel(u))}${u.dur ? ' · ' + esc(u.dur) : ''}</span></span>
-          <span class="modstat">${tp.length ? tp.length + ' activité' + (tp.length > 1 ? 's' : '') + ' · ' : ''}${evs.length} évaluation${evs.length > 1 ? 's' : ''}</span></summary>
-        <div class="modbody">
-          ${u.intent ? `<p class="hint">${esc(u.intent)}</p>` : ''}
-          ${u.ev || u.jal ? `<p class="small">${u.ev ? `<b>Évaluation prévue :</b> ${esc(u.ev)}` : ''}${u.ev && u.jal ? ' · ' : ''}${u.jal ? `<b>Jalon :</b> ${esc(u.jal)}` : ''}</p>` : ''}
-          ${plan.length ? `<div class="planline"><span class="small"><b>Compétences prévues :</b></span> ${plan.map(x => `<span class="planitem pole-${x.a.unit}" title="${esc(x.a.name)}">${esc(x.a.code)} ${stChip(x.st, ST_FULL[x.st])}</span>`).join(' ')}</div>` : ''}
-          ${tp.length ? `<div class="tablewrap"><table class="acttable"><thead><tr><th>Code</th><th>Activité</th><th>Évaluations de la classe</th><th class="num"><span class="sr">Évaluer</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-          ${other.length ? `<p class="small" style="margin:10px 0 4px"><b>Autres évaluations du module :</b></p><div class="evlinks">${other.map(evLink).join('')}</div>` : ''}
-          <div class="formactions" style="justify-content:flex-start;margin-top:10px">${evaluable ? `<a class="btn" href="#module-${esc(u.id)}">Analyse du module</a>` : ''}${evaluable && S.canWrite ? `<button class="btn btn-ghost" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="">+ Évaluation sur le module entier</button>` : ''}</div>
-        </div></details>`;
-    }).join('');
-    body.innerHTML = `<div class="section" style="margin-top:0"><h2>Vue d'ensemble</h2>
-      <p class="hint">Pour chaque module : compétences prévues en FM, évaluations reliées dans cette classe, activités déjà évaluées, positionnements saisis, moyenne et part des positionnements FM au niveau ${seuil} ou plus.</p>
-      <div class="tablewrap"><table><thead><tr><th class="stick">Module</th><th>Période</th><th class="ctr">FM prévues</th><th class="num">Évaluations</th><th class="num">Activités évaluées</th><th class="num">Saisie</th><th class="num">Moyenne</th><th class="num">FM acquises</th><th></th></tr></thead><tbody>${overview}</tbody></table></div></div>
-      <div class="section"><h2>Modules et activités</h2><p class="hint">Ouvrez un module pour voir ses activités. « + Évaluer » crée l'évaluation de l'activité : module, activité, titre, pôle dominant et critères des compétences FM du module sont pré-remplis.</p>${cards}</div>`;
+    const f = $('#atelierFrame'); if (!f) return;
+    const cl = S.classes.find(c => c.id === S.classId);
+    $('#atHint').innerHTML = `La progression de l'équipe, telle quelle. Dans le <b>calendrier</b>, le détail de chaque module montre les évaluations de la classe <b>${esc(cl ? cl.name : '')}</b>, un bouton « Évaluer » en face de chaque TP et l'analyse du module.`;
+    if (!atelierHTML){
+      if (S.progErr) $('#atMsg').innerHTML = `<h2>La progression n'a pas pu s'ouvrir</h2><p>${esc(S.progErr)}</p>`;
+      else ensureAtelier().catch(() => {});
+      return;
+    }
+    if (f.dataset.src !== atelierSrc){
+      f.dataset.src = atelierSrc;
+      window.__ATELIER_HTML = atelierHTML;
+      window.__ATELIER_READY = win => atelierReady(win, f);
+      $('#atMsg').hidden = true; f.hidden = false;
+      f.src = 'progression-atelier.html';
+      return;
+    }
+    atelierInject();
   }
 };
-document.addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('modcard')){ if (d.open) S.openMods.add(d.dataset.mod); else S.openMods.delete(d.dataset.mod); } }, true);
+const ATELIER_CSS = `
+.sc-tp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px}
+.sc-btn{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:7px;padding:1px 10px;font:700 14px/1.7 'Barlow Condensed',Arial,sans-serif;cursor:pointer}
+.sc-btn:hover{background:var(--navy);color:#fff}
+.sc-ev{font:600 12.5px/1.6 'IBM Plex Mono',monospace;color:var(--navy);text-decoration:none;border:1px solid var(--hdl);background:var(--hd);border-radius:6px;padding:0 7px}
+.sc-ev:hover{border-color:var(--navy)}
+.sc-evals{border:2px solid var(--navy);border-radius:10px;padding:12px 14px;background:#f7fafd;display:flex;flex-direction:column;gap:10px}
+.sc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px}
+.sc-kpis div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.sc-kpis b{display:block;font:700 24px/1.1 'Barlow Condensed',Arial,sans-serif;color:var(--navy)}
+.sc-kpis span{font-size:13px;color:var(--mut)}
+.sc-comps{display:flex;flex-direction:column;gap:5px}
+.sc-crow{display:grid;grid-template-columns:62px minmax(130px,1fr) minmax(90px,150px) minmax(120px,auto);gap:4px 10px;align-items:center;font-size:14px}
+.sc-crow .c.X{background:var(--soft);border-color:var(--line);color:var(--mut)}
+.sc-bar{display:flex;height:12px;border-radius:4px;overflow:hidden;background:var(--soft)}
+.sc-bar i{display:block}
+.sc-MI{background:#B3261E}.sc-MF{background:#D99A00}.sc-MS{background:#5DA34A}.sc-TBM{background:#2C7330}
+.sc-val{font:600 12.5px 'IBM Plex Mono',monospace;white-space:nowrap}
+.sc-mut{color:var(--mut)}
+.sc-al{grid-column:2/-1;font-size:13px;font-weight:600;color:#8a4b00}
+.sc-al.err{color:#b4231a}
+.sc-evals .bul a{color:var(--navy);font-weight:600}
+@media (max-width:760px){.sc-crow{grid-template-columns:62px minmax(0,1fr)}.sc-bar,.sc-val{grid-column:2}}`;
+function atelierReady(win, f){
+  atWin = win; window.__ATELIER_HTML = null;
+  if (window.Auth && Auth.watchActivity) Auth.watchActivity(win);
+  const d = win.document;
+  const st = d.createElement('style'); st.textContent = ATELIER_CSS; d.head.appendChild(st);
+  const det = d.getElementById('detail');
+  if (det) new win.MutationObserver(() => atelierInject()).observe(det, {childList:true});
+  d.addEventListener('click', atelierClick, true);
+  win.addEventListener('hashchange', () => { S.atHash = win.location.hash; });
+  const fit = () => { f.style.height = Math.max(480, d.documentElement.scrollHeight) + 'px'; };
+  new win.ResizeObserver(fit).observe(d.body); fit();
+  if (S.atHash && win.location.hash !== S.atHash) win.location.hash = S.atHash;
+  atelierInject();
+}
+function atelierClick(e){
+  const b = e.target.closest && e.target.closest('[data-sc]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const a = b.dataset.sc;
+  if (a === 'new') openEvalEditor(null, {module:b.dataset.mod, activity:b.dataset.actKey || ''});
+  else if (a === 'eval') location.hash = '#eval-' + b.dataset.id;
+  else if (a === 'analyse') location.hash = '#module-' + b.dataset.mod;
+}
+/* Raccord des évaluations dans le détail du module affiché par l'artefact (calendrier). */
+function atelierInject(){
+  const w = atWin; if (!w || w.closed || !S.prog) return;
+  let d; try { d = w.document; } catch(e){ return; }
+  const art = d.querySelector('#detail article.ud'); if (!art) return;
+  const sel = d.querySelector('#ulist .ub[aria-pressed="true"]'); const u = progUnit(sel && sel.dataset.u); if (!u) return;
+  art.querySelectorAll('ol.posts > li').forEach(li => {
+    const host = li.querySelector(':scope > div'); if (!host) return;
+    const code = ((li.querySelector('code') || {}).textContent || '').trim();
+    const t = (u.tp || []).find(x => (x.c || '') === code); if (!t) return;
+    let box = host.querySelector(':scope > .sc-tp'); if (!box){ box = d.createElement('div'); box.className = 'sc-tp'; host.appendChild(box); }
+    box.innerHTML = tpEvalHtml(u, t);
+  });
+  const body = art.querySelector('.ubody'); if (!body) return;
+  let blk = body.querySelector(':scope > .sc-evals');
+  if (!((u.tp || []).length || progCol(u.id) >= 0)){ if (blk) blk.remove(); return; }
+  if (!blk){ blk = d.createElement('div'); blk.className = 'sc-evals'; const foot = body.querySelector(':scope > .foot'); if (foot) body.insertBefore(blk, foot); else body.appendChild(blk); }
+  blk.innerHTML = moduleBlockHtml(u);
+}
+function tpEvalHtml(u, t){
+  const evs = moduleEvals(u.id).filter(ev => ev.activity === actKey(t));
+  return evs.map(ev => { const st = evStats(ev); return `<a href="#" class="sc-ev" data-sc="eval" data-id="${esc(ev.id)}" title="${esc(ev.title)}">${esc(fmtDateShort(ev.date) || 'éval.')} · ${st.done}/${st.total} · ${fmtNote(st.avg)}</a>`; }).join('')
+    + (S.canWrite ? `<button type="button" class="sc-btn" data-sc="new" data-mod="${esc(u.id)}" data-act-key="${esc(actKey(t))}">${evs.length ? '+ Évaluer' : 'Évaluer'}</button>` : '');
+}
+function alertsLines(mod, code, K){
+  const pl = planned(mod, code), out = [];
+  if (pl === 'FM' && !K.n) out.push(['', 'FM prévue, pas encore évaluée']);
+  if (K.used.has('FM') && pl !== 'FM') out.push([pl === 'A' || !pl ? 'err' : '', `évaluée en FM, prévue ${pl || 'non mobilisée'}`]);
+  if (!pl && K.n && !K.used.has('FM')) out.push(['', 'évaluée, non prévue dans ce module']);
+  return out.map(([c, t]) => `<span class="sc-al ${c}">⚠ ${esc(t)}</span>`).join('');
+}
+function moduleBlockHtml(u){
+  const A = moduleAnalysis(u.id), seuil = seuilLevel(), cl = S.classes.find(c => c.id === S.classId), tp = u.tp || [];
+  const evaluated = tp.filter(t => A.evs.some(ev => ev.activity === actKey(t))).length;
+  const pos = ALL_ACTS.reduce((n, a) => n + A.comps[a.code].n, 0), acq = ALL_ACTS.reduce((n, a) => n + A.comps[a.code].acq, 0);
+  const comps = comp11().filter(a => planned(u.id, a.code) || A.comps[a.code].n);
+  const rows = comps.map(a => {
+    const K = A.comps[a.code], pl = planned(u.id, a.code);
+    return `<div class="sc-crow"><span class="c ${pl || 'X'}" title="${esc(a.name)}">${esc(a.code)}</span><span class="sc-mut">${pl ? 'prévue ' + pl : 'non prévue'}${K.used.size ? ' · évaluée ' + [...K.used].join(' / ') : ''}</span>`
+      + (K.n ? `<span class="sc-bar" title="${esc(LEVELS.map(k => k + ' : ' + K.cnt[k]).join(' · '))}">${LEVELS.filter(k => K.cnt[k]).map(k => `<i class="sc-${k}" style="flex:${K.cnt[k]}"></i>`).join('')}</span><span class="sc-val">${Math.round(K.acq / K.n * 100)} % ${seuil}+ · ${lvOfAvg(K.sum / K.n)}</span>`
+        : `<span></span><span class="sc-val sc-mut">pas encore évaluée</span>`)
+      + alertsLines(u.id, a.code, K) + `</div>`;
+  }).join('');
+  const list = A.evs.length ? `<ul class="bul">${A.evs.map(ev => { const st = evStats(ev); return `<li><a href="#" data-sc="eval" data-id="${esc(ev.id)}">${esc(ev.title)}</a> <span class="sc-mut">· ${st.done}/${st.total} évalués · moyenne ${fmtNote(st.avg)}</span></li>`; }).join('')}</ul>`
+    : `<p class="note">Aucune évaluation de ce module dans la classe pour l'instant : utilisez « Évaluer » en face d'un TP.</p>`;
+  return `<div class="lab">Évaluations de la classe · ${esc(cl ? cl.name : '')}</div>
+    <div class="sc-kpis"><div><b>${A.evs.length}</b><span>évaluation${A.evs.length > 1 ? 's' : ''}</span></div><div><b>${tp.length ? evaluated + ' / ' + tp.length : '—'}</b><span>TP évalués</span></div>
+      <div><b>${A.total ? Math.round(A.done / A.total * 100) + ' %' : '—'}</b><span>saisie</span></div><div><b>${fmtNote(avgOf(A.notes.filter(n => n != null)))}</b><span>moyenne</span></div>
+      <div><b>${pos ? Math.round(acq / pos * 100) + ' %' : '—'}</b><span>acquis ${seuil}+</span></div></div>
+    ${comps.length ? `<div><div class="lab">Compétences du module · prévu et évalué</div><div class="sc-comps">${rows}</div></div>` : ''}
+    <div><div class="lab">Évaluations</div>${list}</div>
+    <div class="tags">${S.canWrite ? `<button type="button" class="more" data-sc="new" data-mod="${esc(u.id)}" data-act-key="">+ Évaluer le module</button>` : ''}<button type="button" class="more" data-sc="analyse" data-mod="${esc(u.id)}">Analyse détaillée du module</button></div>`;
+}
 
 VIEWS.module = {
-  build(){ return `<div id="mdBody"></div>`; },
+  build(){ return `<div id="mdBody" class="atelier-style"></div>`; },
   update(){
     const box = $('#mdBody'); const u = progUnit(S.route.id);
     if (!u){ box.innerHTML = `<a class="back" href="#progression">← Progression</a><div class="card empty"><h2>${S.prog ? 'Module introuvable' : 'Chargement de la progression…'}</h2></div>`; return; }
@@ -879,7 +962,8 @@ VIEWS.module = {
     }).join('');
     const fmMissing = comp11().filter(a => planned(u.id, a.code) === 'FM' && !A.comps[a.code].n);
     box.innerHTML = `<a class="back" href="#progression">← Progression</a>
-      <div class="vhead"><div class="grow"><span class="eyebrow">Analyse du module · ${esc(perLabel(u))}</span><h1>${esc(u.code)} — ${esc(u.title)}</h1>
+      <div class="md-head" style="--uc:${esc(u.bg || '#eaf1f8')}"><header class="${u.dk ? 'dk' : ''}"><span class="code">${esc(u.code)}</span><div><b>${esc(u.title)}</b><small>Analyse des évaluations · BTS ${esc(u.y)} · ${esc(perLabel(u))}</small></div></header></div>
+      <div class="vhead"><div class="grow">
         <div class="meta">${u.dur ? `<span>${esc(u.dur)}</span>` : ''}${domGuess(u.id) ? `<span>${poleChip(domGuess(u.id)).replace(' dominant', ' dominant (prévu)')}</span>` : ''}<span>Seuil d'acquisition : ${seuil}</span></div></div>
         <div class="actions">${S.canWrite ? `<button class="btn btn-primary" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="">+ Nouvelle évaluation du module</button>` : ''}</div></div>
       ${u.intent ? `<p class="hint" style="max-width:90ch">${esc(u.intent)}</p>` : ''}
@@ -916,7 +1000,7 @@ VIEWS.reglages = {
           ${w ? `<div class="formactions"><button class="btn btn-primary" type="submit">Enregistrer le barème</button></div>` : ''}</form>
       </div>
       ${w && CFG.progression ? `<div class="section card pad"><h2>Progression</h2>
-        <p class="hint">${S.prog ? `Progression « ${esc(S.prog.source || 'BTS')} » importée le ${esc(new Date(S.prog.importedAt || Date.now()).toLocaleString('fr-FR'))} : ${S.prog.units.length} unités, ${S.prog.units.reduce((n, u) => n + (u.tp || []).length, 0)} activités.` : 'Aucune progression importée.'} Pour la mettre à jour, choisissez le fichier « Progression Atelier BTS MV.html » : les modules et les activités sont remplacés, les évaluations déjà reliées sont conservées.</p>
+        <p class="hint">${S.prog ? `Artefact « ${esc(S.prog.source || 'Atelier BTS MV')} » ${S.prog.importedAt ? 'importé le ' + esc(new Date(S.prog.importedAt).toLocaleString('fr-FR')) : 'livré avec l\'application (fichier chiffré)'} : ${S.prog.units.length} unités, ${S.prog.units.reduce((n, u) => n + (u.tp || []).length, 0)} TP.` : 'Progression en cours de chargement.'} Pour la mettre à jour, choisissez le nouveau fichier « Progression Atelier BTS MV.html » : il est affiché tel quel dans l'onglet Progression et les évaluations déjà reliées aux modules sont conservées.</p>
         <div class="formactions" style="justify-content:flex-start"><button class="btn" type="button" data-act="prog-import">${S.prog ? 'Mettre à jour la progression…' : 'Importer la progression…'}</button></div></div>` : ''}
       ${w ? `<div class="section card pad"><h2>Classes de la formation</h2>
         <p class="hint">Supprimer une classe efface ses étudiants, ses évaluations (tous ${UNIT.toLowerCase()}s) et tous les positionnements, pour tous les formateurs. Une copie reste dans l'historique de la base et peut être restaurée en cas d'erreur.</p>
