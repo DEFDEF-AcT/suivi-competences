@@ -66,7 +66,7 @@ const cmpFr = (a, b) => String(a).localeCompare(String(b), 'fr', {sensitivity:'b
 
 /* ---------- État ---------- */
 const S = {
-  phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true, admin:true, names:{},
+  prog:null, progYear:LS.get(LSK('progyear')) || 'all', openMods:new Set(), phase:'connecting', bloc:(() => { const v = Number(LS.get(LSK('bloc'))); return REF[v] ? v : DEFAULT_UNIT; })(), db:null, user:null, dl:null, me:null, canWrite:true, admin:true, names:{},
   classes:[], classesLoaded:false, classId:null, config:{points:{...DEFAULT_POINTS}},
   students:[], evals:[], results:new Map(), loaded:{students:false, evals:false, results:false},
   unsubClass:[], route:{view:'evaluations', id:null}, builtKey:'', panel:null, editing:null, slow:false,
@@ -372,6 +372,7 @@ function subscribeGlobal(){
     S.config = snap.exists ? {points:{...DEFAULT_POINTS}, ...snap.data()} : {points:{...DEFAULT_POINTS}};
     scheduleRender();
   }, err => console.error(err));
+  if (CFG.progression) S.db.doc('config/progression').onSnapshot(snap => { S.prog = snap.exists ? snap.data() : null; scheduleRender(); }, err => console.error(err));
 }
 function pickClass(){
   let id = S.classId;
@@ -420,7 +421,8 @@ function parseRoute(){
   const h = decodeURIComponent(location.hash.replace(/^#/, ''));
   if (h.startsWith('eval-')) return {view:'eval', id:h.slice(5)};
   if (h.startsWith('etudiant-')) return {view:'etudiant', id:h.slice(9)};
-  if (['etudiants','synthese','reglages'].includes(h)) return {view:h, id:null};
+  if (h.startsWith('module-')) return {view:'module', id:h.slice(7)};
+  if (['etudiants','synthese','reglages','progression'].includes(h)) return {view:h, id:null};
   return {view:'evaluations', id:null};
 }
 function render(){
@@ -437,7 +439,7 @@ function renderClassSelect(){
   if (!S.classes.length) sel.value = '__new';
 }
 function renderTabs(){
-  const v = S.route.view === 'eval' ? 'evaluations' : S.route.view === 'etudiant' ? 'etudiants' : S.route.view;
+  const v = S.route.view === 'eval' ? 'evaluations' : S.route.view === 'etudiant' ? 'etudiants' : S.route.view === 'module' ? 'progression' : S.route.view;
   document.querySelectorAll('#tabs a').forEach(a => { if (a.dataset.v === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
 }
 function renderBanner(){
@@ -493,7 +495,7 @@ VIEWS.evaluations = {
       const chips = evalLines(ev).map(l => `<span class="chip code" title="${esc(l.short)}">${esc(l.key === 'TR' ? 'Transverse' : l.code)}</span>`).join('');
       return `<a class="card evrow" href="#eval-${esc(ev.id)}">
         <div class="evdate">${esc(fmtDate(ev.date))}</div>
-        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips">${UNIFIED ? poleChip(unitOf(ev)) : ''}<span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}${ev.createdBy && ev.createdBy !== S.me ? `<span class="chip author">par ${esc(authorOf(ev))}</span>` : ''}</div></div>
+        <div class="evmain"><div class="evtitle">${esc(ev.title)}</div><div class="evchips">${UNIFIED ? poleChip(unitOf(ev)) : ''}${modChip(ev)}<span class="chip type">${esc(ev.type || 'TP')}</span>${ev.code ? `<span class="chip">${esc(ev.code)}</span>` : ''}${chips}${ev.createdBy && ev.createdBy !== S.me ? `<span class="chip author">par ${esc(authorOf(ev))}</span>` : ''}</div></div>
         <div class="evprog"><div class="prog">${st.done} / ${st.total} évalués · ${st.validated} validé${st.validated > 1 ? 's' : ''}</div><div class="bar"><i style="width:${pct}%"></i></div></div>
         <div class="avg"><span class="xs muted">Moyenne</span><br><strong>${fmtNote(st.avg)}</strong></div></a>`;
     }).join('');
@@ -514,7 +516,7 @@ VIEWS.eval = {
     const lines = evalLines(ev); const st = evStats(ev);
     $('#evHead').innerHTML = `<a class="back" href="#evaluations">← Évaluations</a>
       <div class="vhead"><div class="grow"><span class="eyebrow">${esc(ev.type || 'TP')}${ev.code ? ' · ' + esc(ev.code) : ''}</span><h1>${esc(ev.title)}</h1>
-      <div class="meta">${UNIFIED ? `<span>${poleChip(unitOf(ev))} ${esc(REF[unitOf(ev)].label)}</span>` : ''}<span>${esc(fmtDate(ev.date))}</span><span>${lines.length} ligne${lines.length > 1 ? 's' : ''} évaluée${lines.length > 1 ? 's' : ''}</span></div></div>
+      <div class="meta">${UNIFIED ? `<span>${poleChip(unitOf(ev))} ${esc(REF[unitOf(ev)].label)}</span>` : ''}${ev.module && progUnit(ev.module) ? `<span><a href="#module-${esc(ev.module)}">${esc(progUnit(ev.module).code)}${ev.activity ? ' · ' + esc(ev.activity) : ''} : analyse du module</a></span>` : ''}<span>${esc(fmtDate(ev.date))}</span><span>${lines.length} ligne${lines.length > 1 ? 's' : ''} évaluée${lines.length > 1 ? 's' : ''}</span></div></div>
       <div class="actions">${canEditEval(ev) ? `<button class="btn" data-act="edit-eval" data-id="${esc(ev.id)}">Modifier</button>` : ''}${S.dl ? `<button class="btn" data-act="export-eval" data-id="${esc(ev.id)}">Exporter (.xlsx)</button>` : ''}${canEditEval(ev) ? `<button class="btn btn-danger" data-act="del-eval" data-id="${esc(ev.id)}">Supprimer</button>` : ''}</div></div>
       ${S.canWrite && !canEditEval(ev) ? `<p class="hint">Évaluation créée par ${esc(authorOf(ev) || "l'administrateur")} : vous pouvez positionner et noter les étudiants, mais pas la modifier ni la supprimer.</p>` : ''}`;
     $('#evStats').innerHTML = `<div class="card stat"><span>Évalués</span><b>${st.done} / ${st.total}</b></div>
@@ -693,6 +695,211 @@ function refHtml(){
     UNITS.map(u => `<h3 class="polehead pole-${u}">${esc(REF[u].label)}</h3><p class="hint">${esc(REF[u].title)}. Évaluation : ${esc(REF[u].modal)}</p>${refList(REF[u].acts, REF[u].comps)}`).join('') + `</div>`;
 }
 
+
+/* ---------- Progression BTS : modules et activités (document config/progression) ---------- */
+const ST_FULL = {A:'Abordée', M:'Mobilisée', FM:'Fortement mobilisée'};
+const ST_SHORT = {'Abordée':'A', 'Mobilisée':'M', 'Fortement mobilisée':'FM'};
+const comp11 = () => ALL_ACTS.filter(a => !/^T/.test(a.code));
+const progUnit = id => (S.prog && id) ? S.prog.units.find(u => u.id === id) : null;
+const progCol = id => S.prog ? S.prog.cols.findIndex(c => c.u === id) : -1;
+const actKey = t => t.c || t.t;
+const progAct = (mod, key) => { const u = progUnit(mod); return u && key ? (u.tp || []).find(t => actKey(t) === key) : null; };
+function planned(mod, comp){ const i = progCol(mod); return i < 0 || !S.prog.mx[comp] ? '' : (S.prog.mx[comp][i] || ''); }
+const moduleEvals = id => blocEvals().filter(ev => ev.module === id);
+const stChip = (st, title) => st ? `<span class="st st-${st}"${title ? ` title="${esc(title)}"` : ''}>${st}</span>` : '<span class="st st-none" title="Non prévue">·</span>';
+const planBadge = (mod, comp) => { const pl = mod ? planned(mod, comp) : ''; return pl ? 'prévu ' + stChip(pl) : ''; };
+const modChip = ev => { const u = ev && ev.module && progUnit(ev.module); return u ? `<span class="chip modchip" title="${esc(u.title)}">${esc(u.code)}${ev.activity ? ' · ' + esc(ev.activity) : ''}</span>` : ''; };
+const perLabel = u => { const p = S.prog && S.prog.per[u.pk]; return p ? p.lab + (p.mo ? ' · ' + p.mo : '') : ''; };
+const themeName = k => { const t = S.prog && (S.prog.themes || []).find(x => x[0] === k); return t ? t[1] : k; };
+function domGuess(mod){
+  const u = progUnit(mod); const m = u && /[Dd]ominante pôle (\d)/.exec(u.intent || '');
+  if (m && REF[m[1]]) return Number(m[1]);
+  const score = {};
+  comp11().forEach(a => { const st = planned(mod, a.code); if (st) score[a.unit] = (score[a.unit] || 0) + (st === 'FM' ? 3 : st === 'M' ? 1 : 0); });
+  const best = Object.entries(score).sort((x, y) => y[1] - x[1])[0];
+  return best && best[1] ? Number(best[0]) : 0;
+}
+function planText(mod){
+  if (!mod) return 'Évaluation hors progression : choisissez un module pour retrouver les compétences prévues.';
+  const parts = comp11().map(a => ({a, st:planned(mod, a.code)})).filter(x => x.st);
+  return parts.length ? `Prévu dans la progression : ${parts.map(x => `<span class="planitem pole-${x.a.unit}">${esc(x.a.code)} ${stChip(x.st, ST_FULL[x.st])}</span>`).join(' ')}. Les statuts proposés suivent ces prévisions.` : 'Aucune compétence prévue pour ce module dans la matrice de couverture.';
+}
+function progPicker(mod, actv){
+  const units = S.prog.units.filter(u => (u.tp && u.tp.length) || progCol(u.id) >= 0);
+  const groups = [1, 2].map(y => `<optgroup label="BTS ${y}">${units.filter(u => u.y === y).map(u => `<option value="${esc(u.id)}"${u.id === mod ? ' selected' : ''}>${esc(u.code)} · ${esc(u.short || u.title)}</option>`).join('')}</optgroup>`).join('');
+  return `<div class="row progrow"><label class="fld"><span>Module de la progression</span><select id="fMod" class="inp"><option value="">— Hors progression —</option>${groups}</select></label>
+    <label class="fld"><span>Activité</span><select id="fAct" class="inp">${actOptions(mod, actv)}</select></label></div>
+    <p class="hint" id="fPlan">${planText(mod)}</p>`;
+}
+function actOptions(mod, actv){
+  const u = progUnit(mod);
+  return `<option value="">${u ? '— Module entier ou autre activité —' : '—'}</option>` + (u ? (u.tp || []).map(t => `<option value="${esc(actKey(t))}"${actKey(t) === actv ? ' selected' : ''}>${esc(t.c ? t.c + ' · ' : '')}${esc(t.t)}</option>`).join('') : '');
+}
+async function importProgression(){
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.html,.htm,.json';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    const txt = await f.text();
+    let d;
+    try {
+      const m = txt.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/);
+      d = JSON.parse(m ? m[1] : txt);
+    } catch(e){ toast("Fichier illisible : choisissez « Progression Atelier BTS MV.html »."); return; }
+    if (!d || !Array.isArray(d.units) || !Array.isArray(d.cols) || !d.mx){ toast("Ce fichier ne contient pas de progression reconnue."); return; }
+    const per = {};
+    Object.entries(d.Y || {}).forEach(([y, Y]) => (Y.per || []).forEach(p => { per[p.k] = {lab:p.lab, mo:p.mo || '', ph:p.ph || '', y:Number(y)}; }));
+    const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] != null && o[k] !== '').map(k => [k, o[k]]));
+    const data = {source:f.name.replace(/\.[^.]+$/, ''), importedAt:new Date().toISOString(), per,
+      units:d.units.map(u => ({...pick(u, ['id','code','short','title','dur','pk','y','intent','ev','jal','mat','pl']), tp:(u.tp || []).map(t => pick(t, ['c','t','d','th']))})),
+      cols:d.cols.map(c => ({k:c.k, u:c.u, y:c.y})), mx:d.mx, themes:d.themes || []};
+    if (!confirm(`Remplacer la progression par celle du fichier (${data.units.length} unités, ${data.units.reduce((n, u) => n + u.tp.length, 0)} activités) ?`)) return;
+    await setDoc('config/progression', data);
+    toast('Progression mise à jour.');
+  };
+  inp.click();
+}
+/* Positionnements des évaluations d'un module, compétence par compétence. */
+function moduleAnalysis(id){
+  const evs = moduleEvals(id), studs = sortedStudents(), si = LEVELS.indexOf(seuilLevel());
+  const comps = {};
+  ALL_ACTS.forEach(a => { comps[a.code] = {cnt:{MI:0, MF:0, MS:0, TBM:0}, n:0, sum:0, acq:0, used:new Set(), per:new Map(), evs:new Set()}; });
+  let done = 0, total = 0;
+  for (const ev of evs){
+    for (const s of studs){ total++; if (isDone(ev, resFor(ev.id, s.id))) done++; }
+    for (const l of evalLines(ev)){
+      const c = COMP[l.code]; const K = c && comps[actOf(c)]; if (!K) continue;
+      if (ST_SHORT[l.status]) K.used.add(ST_SHORT[l.status]);
+      K.evs.add(ev.id);
+      for (const s of studs){
+        const r = resFor(ev.id, s.id); const lv = r && !r.absent && r.levels && r.levels[l.key]; if (!lv) continue;
+        K.cnt[lv]++; K.n++; K.sum += lvNum(lv); if (LEVELS.indexOf(lv) >= si) K.acq++;
+        const arr = K.per.get(s.id) || []; arr.push(lvNum(lv)); K.per.set(s.id, arr);
+      }
+    }
+  }
+  const notes = studs.map(s => avgOf(evs.map(ev => finalNote(ev, resFor(ev.id, s.id))).filter(n => n != null)));
+  return {evs, studs, comps, done, total, notes};
+}
+function alertsFor(mod, code, K){
+  const pl = planned(mod, code), out = [];
+  if (pl === 'FM' && !K.n) out.push(['warn', 'FM prévue, pas encore évaluée']);
+  if (K.used.has('FM') && pl !== 'FM') out.push([pl === 'A' || !pl ? 'err' : 'info', `évaluée en FM, prévue ${pl || 'non mobilisée'}`]);
+  if (!pl && K.n && !K.used.has('FM')) out.push(['info', 'évaluée, non prévue dans ce module']);
+  return out.map(([c, t]) => `<span class="alert alert-${c}">${esc(t)}</span>`).join(' ');
+}
+const distBar = cnt => { const tot = LEVELS.reduce((n, k) => n + cnt[k], 0); return tot ? `<div class="seg-bar" data-tip="${esc(LEVELS.map(k => k + ' : ' + cnt[k]).join(' · '))}">${LEVELS.filter(k => cnt[k]).map(k => `<i class="f-${k}" style="flex:${cnt[k]}"></i>`).join('')}</div>` : '<span class="muted small">—</span>'; };
+
+VIEWS.progression = {
+  build(){
+    return `<div class="vhead"><div class="grow"><h1>Progression — modules et activités</h1><div class="meta" id="pgMeta"></div></div>
+      <div class="actions"><div class="blocs" role="group" aria-label="Année">${[['1', 'BTS 1'], ['2', 'BTS 2'], ['all', 'Les deux années']].map(([y, l]) => `<button type="button" class="blocbtn" data-act="prog-year" data-y="${y}" aria-pressed="false">${l}</button>`).join('')}</div></div></div>
+      <div id="pgBody"></div>`;
+  },
+  update(){
+    document.querySelectorAll('[data-act="prog-year"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.y === S.progYear)));
+    const body = $('#pgBody');
+    if (!S.prog){ body.innerHTML = `<div class="card empty"><h2>Pas encore de progression</h2><p>${S.admin ? 'Importez votre fichier « Progression Atelier BTS MV.html » dans l\'onglet Réglages.' : 'L\'administrateur n\'a pas encore importé la progression.'}</p></div>`; return; }
+    const units = S.prog.units.filter(u => S.progYear === 'all' || String(u.y) === S.progYear);
+    const mods = units.filter(u => (u.tp && u.tp.length) || progCol(u.id) >= 0);
+    const evCount = mods.reduce((n, u) => n + moduleEvals(u.id).length, 0);
+    $('#pgMeta').textContent = `${mods.length} modules · ${mods.reduce((n, u) => n + (u.tp || []).length, 0)} activités · ${evCount} évaluation${evCount > 1 ? 's' : ''} reliée${evCount > 1 ? 's' : ''} dans cette classe`;
+    const seuil = seuilLevel();
+    const overview = mods.map(u => {
+      const A = moduleAnalysis(u.id); const tp = u.tp || [];
+      const evalued = tp.filter(t => A.evs.some(ev => ev.activity === actKey(t))).length;
+      const fm = comp11().filter(a => planned(u.id, a.code) === 'FM');
+      const fmPos = fm.reduce((n, a) => n + A.comps[a.code].n, 0), fmAcq = fm.reduce((n, a) => n + A.comps[a.code].acq, 0);
+      return `<tr><td class="stick"><a href="#module-${esc(u.id)}"><b>${esc(u.code)}</b></a> <span class="small">${esc(u.short || u.title)}</span></td><td class="small">${esc(perLabel(u))}</td>
+        <td class="ctr">${fm.map(a => `<span class="planitem pole-${a.unit}">${esc(a.code)}</span>`).join(' ') || '<span class="muted small">—</span>'}</td>
+        <td class="num">${A.evs.length}</td><td class="num">${tp.length ? evalued + ' / ' + tp.length : '—'}</td>
+        <td class="num">${A.total ? Math.round(A.done / A.total * 100) + ' %' : '—'}</td>
+        <td class="num"><b>${fmtNote(avgOf(A.notes.filter(n => n != null)))}</b></td>
+        <td class="num">${fmPos ? Math.round(fmAcq / fmPos * 100) + ' %' : '—'}</td>
+        <td class="num"><a href="#module-${esc(u.id)}">Analyse →</a></td></tr>`;
+    }).join('');
+    const cards = units.map(u => {
+      const evs = moduleEvals(u.id), tp = u.tp || [], evaluable = tp.length || progCol(u.id) >= 0;
+      const open = S.openMods.has(u.id);
+      const plan = comp11().map(a => ({a, st:planned(u.id, a.code)})).filter(x => x.st);
+      const evLink = ev => { const st = evStats(ev); return `<a class="evlink" href="#eval-${esc(ev.id)}" title="${esc(ev.title)}">${esc(ev.title.length > 34 ? ev.title.slice(0, 32) + '…' : ev.title)} <span class="muted">· ${st.done}/${st.total} · ${fmtNote(st.avg)}</span></a>`; };
+      const rows = tp.map(t => {
+        const linked = evs.filter(ev => ev.activity === actKey(t));
+        return `<tr><td class="actcode">${esc(t.c || '')}</td><td><b>${esc(t.t)}</b>${t.d ? `<br><span class="xs muted">${esc(t.d)}</span>` : ''}${(t.th || []).length ? `<div class="themes">${t.th.map(k => `<span class="chip">${esc(themeName(k))}</span>`).join('')}</div>` : ''}</td>
+          <td>${linked.map(evLink).join('') || '<span class="muted small">Pas encore évaluée</span>'}</td>
+          <td class="num">${S.canWrite ? `<button class="btn btn-ghost" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="${esc(actKey(t))}">+ Évaluer</button>` : ''}</td></tr>`;
+      }).join('');
+      const other = evs.filter(ev => !ev.activity || !tp.some(t => actKey(t) === ev.activity));
+      return `<details class="card modcard" data-mod="${esc(u.id)}"${open ? ' open' : ''}><summary>
+          <span class="modcode">${esc(u.code)}</span><span class="modtitle"><b>${esc(u.title)}</b><span class="xs muted">${esc(perLabel(u))}${u.dur ? ' · ' + esc(u.dur) : ''}</span></span>
+          <span class="modstat">${tp.length ? tp.length + ' activité' + (tp.length > 1 ? 's' : '') + ' · ' : ''}${evs.length} évaluation${evs.length > 1 ? 's' : ''}</span></summary>
+        <div class="modbody">
+          ${u.intent ? `<p class="hint">${esc(u.intent)}</p>` : ''}
+          ${u.ev || u.jal ? `<p class="small">${u.ev ? `<b>Évaluation prévue :</b> ${esc(u.ev)}` : ''}${u.ev && u.jal ? ' · ' : ''}${u.jal ? `<b>Jalon :</b> ${esc(u.jal)}` : ''}</p>` : ''}
+          ${plan.length ? `<div class="planline"><span class="small"><b>Compétences prévues :</b></span> ${plan.map(x => `<span class="planitem pole-${x.a.unit}" title="${esc(x.a.name)}">${esc(x.a.code)} ${stChip(x.st, ST_FULL[x.st])}</span>`).join(' ')}</div>` : ''}
+          ${tp.length ? `<div class="tablewrap"><table class="acttable"><thead><tr><th>Code</th><th>Activité</th><th>Évaluations de la classe</th><th class="num"><span class="sr">Évaluer</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+          ${other.length ? `<p class="small" style="margin:10px 0 4px"><b>Autres évaluations du module :</b></p><div class="evlinks">${other.map(evLink).join('')}</div>` : ''}
+          <div class="formactions" style="justify-content:flex-start;margin-top:10px">${evaluable ? `<a class="btn" href="#module-${esc(u.id)}">Analyse du module</a>` : ''}${evaluable && S.canWrite ? `<button class="btn btn-ghost" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="">+ Évaluation sur le module entier</button>` : ''}</div>
+        </div></details>`;
+    }).join('');
+    body.innerHTML = `<div class="section" style="margin-top:0"><h2>Vue d'ensemble</h2>
+      <p class="hint">Pour chaque module : compétences prévues en FM, évaluations reliées dans cette classe, activités déjà évaluées, positionnements saisis, moyenne et part des positionnements FM au niveau ${seuil} ou plus.</p>
+      <div class="tablewrap"><table><thead><tr><th class="stick">Module</th><th>Période</th><th class="ctr">FM prévues</th><th class="num">Évaluations</th><th class="num">Activités évaluées</th><th class="num">Saisie</th><th class="num">Moyenne</th><th class="num">FM acquises</th><th></th></tr></thead><tbody>${overview}</tbody></table></div></div>
+      <div class="section"><h2>Modules et activités</h2><p class="hint">Ouvrez un module pour voir ses activités. « + Évaluer » crée l'évaluation de l'activité : module, activité, titre, pôle dominant et critères des compétences FM du module sont pré-remplis.</p>${cards}</div>`;
+  }
+};
+document.addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('modcard')){ if (d.open) S.openMods.add(d.dataset.mod); else S.openMods.delete(d.dataset.mod); } }, true);
+
+VIEWS.module = {
+  build(){ return `<div id="mdBody"></div>`; },
+  update(){
+    const box = $('#mdBody'); const u = progUnit(S.route.id);
+    if (!u){ box.innerHTML = `<a class="back" href="#progression">← Progression</a><div class="card empty"><h2>${S.prog ? 'Module introuvable' : 'Chargement de la progression…'}</h2></div>`; return; }
+    const A = moduleAnalysis(u.id), seuil = seuilLevel(), tp = u.tp || [];
+    const posTot = ALL_ACTS.reduce((n, a) => n + A.comps[a.code].n, 0), acqTot = ALL_ACTS.reduce((n, a) => n + A.comps[a.code].acq, 0);
+    const compRows = UNITS.map(pu => {
+      const acts = ALL_ACTS.filter(a => a.unit === pu && (!/^T/.test(a.code) || A.comps[a.code].n));
+      return `<tr class="grouprow"><td colspan="8" class="pole-${pu}">${esc(REF[pu].label)}</td></tr>` + acts.map(a => {
+        const K = A.comps[a.code], pl = /^T/.test(a.code) ? '' : planned(u.id, a.code);
+        return `<tr><td class="stick"><b>${esc(a.code)}</b> <span class="small">${esc(a.band)}</span></td><td class="ctr">${/^T/.test(a.code) ? '<span class="muted small">transversal</span>' : stChip(pl, pl ? ST_FULL[pl] : 'Non prévue dans ce module')}</td>
+          <td class="ctr">${[...K.used].map(x => stChip(x)).join(' ') || '<span class="muted small">—</span>'}</td><td class="num">${K.n || '—'}</td><td style="min-width:120px">${distBar(K.cnt)}</td>
+          <td class="num">${K.n ? Math.round(K.acq / K.n * 100) + ' %' : '—'}</td><td class="ctr">${K.n ? lvChip(lvOfAvg(K.sum / K.n), 'Niveau moyen : ' + fmtNote(K.sum / K.n) + ' sur 4') : '<span class="lv lv-none">—</span>'}</td>
+          <td>${/^T/.test(a.code) ? '' : alertsFor(u.id, a.code, K)}</td></tr>`;
+      }).join('');
+    }).join('');
+    const usedActs = ALL_ACTS.filter(a => A.comps[a.code].n);
+    const studRows = A.studs.map((s, i) => `<tr><td class="stick"><a class="namebtn" href="#etudiant-${esc(s.id)}" style="text-decoration:none">${esc(s.nom)} ${esc(s.prenom)}</a></td>
+      ${usedActs.map(a => { const v = avgOf(A.comps[a.code].per.get(s.id) || []); return `<td class="ctr">${v == null ? '<span class="lv lv-none">—</span>' : lvChip(lvOfAvg(v), a.code + ' : ' + fmtNote(v) + ' sur 4')}</td>`; }).join('')}
+      <td class="num">${A.evs.filter(ev => isDone(ev, resFor(ev.id, s.id))).length} / ${A.evs.length}</td><td class="num"><b>${fmtNote(A.notes[i])}</b></td></tr>`).join('');
+    const actRows = tp.map(t => {
+      const linked = A.evs.filter(ev => ev.activity === actKey(t));
+      const avg = avgOf(linked.map(ev => evStats(ev).avg).filter(x => x != null));
+      return `<tr><td class="actcode">${esc(t.c || '')}</td><td>${esc(t.t)}</td><td>${linked.map(ev => `<a href="#eval-${esc(ev.id)}">${esc(ev.title)}</a>`).join('<br>') || '<span class="muted small">Pas encore évaluée</span>'}</td>
+        <td class="num">${linked.length ? linked.map(ev => { const st = evStats(ev); return st.done + ' / ' + st.total; }).join('<br>') : '—'}</td><td class="num"><b>${fmtNote(avg)}</b></td>
+        <td class="num">${S.canWrite ? `<button class="btn btn-ghost" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="${esc(actKey(t))}">+ Évaluer</button>` : ''}</td></tr>`;
+    }).join('');
+    const fmMissing = comp11().filter(a => planned(u.id, a.code) === 'FM' && !A.comps[a.code].n);
+    box.innerHTML = `<a class="back" href="#progression">← Progression</a>
+      <div class="vhead"><div class="grow"><span class="eyebrow">Analyse du module · ${esc(perLabel(u))}</span><h1>${esc(u.code)} — ${esc(u.title)}</h1>
+        <div class="meta">${u.dur ? `<span>${esc(u.dur)}</span>` : ''}${domGuess(u.id) ? `<span>${poleChip(domGuess(u.id)).replace(' dominant', ' dominant (prévu)')}</span>` : ''}<span>Seuil d'acquisition : ${seuil}</span></div></div>
+        <div class="actions">${S.canWrite ? `<button class="btn btn-primary" type="button" data-act="new-eval" data-mod="${esc(u.id)}" data-actv="">+ Nouvelle évaluation du module</button>` : ''}</div></div>
+      ${u.intent ? `<p class="hint" style="max-width:90ch">${esc(u.intent)}</p>` : ''}
+      <div class="stats"><div class="card stat"><span>Évaluations</span><b>${A.evs.length}</b></div>
+        <div class="card stat"><span>Activités évaluées</span><b>${tp.length ? tp.filter(t => A.evs.some(ev => ev.activity === actKey(t))).length + ' / ' + tp.length : '—'}</b></div>
+        <div class="card stat"><span>Saisie</span><b>${A.total ? Math.round(A.done / A.total * 100) + ' %' : '—'}</b></div>
+        <div class="card stat"><span>Moyenne du module</span><b>${fmtNote(avgOf(A.notes.filter(n => n != null)))}</b></div>
+        <div class="card stat" title="Positionnements au niveau ${seuil} ou plus"><span>Acquis (${seuil}+)</span><b>${posTot ? Math.round(acqTot / posTot * 100) + ' %' : '—'}</b></div></div>
+      ${!A.evs.length ? `<div class="card empty"><h2>Aucune évaluation reliée à ce module dans cette classe</h2><p>Créez les évaluations depuis l'onglet Progression (« + Évaluer » sur une activité) ou choisissez ce module dans le formulaire d'une évaluation.</p></div>` : ''}
+      ${fmMissing.length && A.evs.length ? `<p class="alert alert-warn" style="display:inline-block;margin-bottom:6px">Compétences prévues en FM et pas encore évaluées dans ce module : ${fmMissing.map(a => esc(a.code)).join(', ')}</p>` : ''}
+      <div class="section"><h2>Compétences : prévu et évalué</h2>
+        <p class="hint">« Prévu » : statut de la matrice de couverture de la progression. « Évalué en » : statuts utilisés dans les évaluations du module. Répartition, part au niveau ${seuil} ou plus et niveau moyen : tous les positionnements des critères de la compétence dans le module.</p>
+        <div class="tablewrap"><table><thead><tr><th class="stick">Compétence</th><th class="ctr">Prévu</th><th class="ctr">Évalué en</th><th class="num">Positionnements</th><th>Répartition</th><th class="num">${seuil}+</th><th class="ctr">Niveau moyen</th><th>Cohérence</th></tr></thead><tbody>${compRows}</tbody></table></div>
+        <div class="legend">${LEVELS.map(k => `<span><i class="sw f-${k}"></i>${k}</span>`).join('')}<span>${stChip('A')} Abordée · ${stChip('M')} Mobilisée · ${stChip('FM')} Fortement mobilisée</span></div></div>
+      ${A.evs.length && A.studs.length ? `<div class="section"><h2>Étudiants</h2><p class="hint">Niveau moyen de chaque étudiant sur les compétences évaluées dans le module, évaluations complètes et moyenne des notes du module.</p>
+        <div class="tablewrap"><table><thead><tr><th class="stick">Étudiant</th>${usedActs.map(a => `<th class="ctr pole-${a.unit}" title="${esc(a.name)}">${esc(a.code)}<br><span style="font-weight:400">${esc(a.band)}</span></th>`).join('')}<th class="num">Évaluations</th><th class="num">Moyenne</th></tr></thead><tbody>${studRows}</tbody></table></div></div>` : ''}
+      ${tp.length ? `<div class="section"><h2>Activités</h2><div class="tablewrap"><table><thead><tr><th>Code</th><th>Activité</th><th>Évaluations</th><th class="num">Évalués</th><th class="num">Moyenne</th><th></th></tr></thead><tbody>${actRows}</tbody></table></div></div>` : ''}`;
+  }
+};
+
 /* --- Vue : réglages --- */
 VIEWS.reglages = {
   build(){
@@ -708,6 +915,9 @@ VIEWS.reglages = {
           <label class="fld" style="max-width:320px"><span>Seuil d'acquisition (graphiques et colonne « Acquisition »)</span><select id="pt-seuil" class="inp"${w ? '' : ' disabled'}>${['MF','MS','TBM'].map(k => `<option value="${k}"${k === seuilLevel() ? ' selected' : ''}>${k} ou plus</option>`).join('')}</select></label>
           ${w ? `<div class="formactions"><button class="btn btn-primary" type="submit">Enregistrer le barème</button></div>` : ''}</form>
       </div>
+      ${w && CFG.progression ? `<div class="section card pad"><h2>Progression</h2>
+        <p class="hint">${S.prog ? `Progression « ${esc(S.prog.source || 'BTS')} » importée le ${esc(new Date(S.prog.importedAt || Date.now()).toLocaleString('fr-FR'))} : ${S.prog.units.length} unités, ${S.prog.units.reduce((n, u) => n + (u.tp || []).length, 0)} activités.` : 'Aucune progression importée.'} Pour la mettre à jour, choisissez le fichier « Progression Atelier BTS MV.html » : les modules et les activités sont remplacés, les évaluations déjà reliées sont conservées.</p>
+        <div class="formactions" style="justify-content:flex-start"><button class="btn" type="button" data-act="prog-import">${S.prog ? 'Mettre à jour la progression…' : 'Importer la progression…'}</button></div></div>` : ''}
       ${w ? `<div class="section card pad"><h2>Classes de la formation</h2>
         <p class="hint">Supprimer une classe efface ses étudiants, ses évaluations (tous ${UNIT.toLowerCase()}s) et tous les positionnements, pour tous les formateurs. Une copie reste dans l'historique de la base et peut être restaurée en cas d'erreur.</p>
         <div id="classList"><p class="muted small">Chargement…</p></div></div>` : ''}
@@ -821,8 +1031,15 @@ function onPanelText(field, value){
 }
 
 /* ---------- Évaluation : création / modification ---------- */
-function openEvalEditor(ev){
+function openEvalEditor(ev, preset){
   const isNew = !ev; ev = ev || {title:'', code:'', date:today(), type:'TP', comps:[], transverse:null};
+  if (isNew && preset && preset.module && progUnit(preset.module)){
+    // Créée depuis la progression : module, activité, titre, code, pôle dominant suggéré et critères des compétences FM du module.
+    const t = progAct(preset.module, preset.activity);
+    ev = {...ev, module:preset.module, activity:preset.activity || '', bloc:domGuess(preset.module) || undefined,
+      title:t ? (t.c ? t.c + ' — ' : '') + t.t : progUnit(preset.module).code + ' — ' + progUnit(preset.module).title, code:t && t.c ? t.c : '',
+      comps:ALL_COMPS.filter(c => planned(preset.module, actOf(c)) === 'FM').map(c => ({code:c.code, status:'Fortement mobilisée', weight:1}))};
+  }
   const sel = Object.fromEntries((ev.comps || []).map(c => [c.code, c]));
   const m = openModal(`<form class="form" data-form="eval" ${isNew ? '' : `data-id="${esc(ev.id)}"`}>
     <h2>${isNew ? 'Nouvelle évaluation' : 'Modifier l\'évaluation'}</h2>
@@ -830,6 +1047,7 @@ function openEvalEditor(ev){
     <div class="row"><label class="fld"><span>Code (cartouche)</span><input id="fCode" type="text" value="${esc(ev.code || '')}" placeholder="${esc(CFG.codePlaceholder(S.bloc))}"></label>
       <label class="fld" style="flex:0 1 170px"><span>Date</span><input id="fDate" type="date" value="${esc(ev.date || '')}"></label>
       <label class="fld" style="flex:0 1 150px"><span>Type</span><select id="fType" class="inp">${TYPES.map(t => `<option${t === ev.type ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
+    ${CFG.progression && S.prog ? progPicker(ev.module || '', ev.activity || '') : ''}
     ${UNIFIED ? polePicker(ev, sel, isNew) : `<fieldset><legend>Compétences évaluées</legend><p class="hint">${esc(CFG.compHint)}</p><p class="small" id="fFm" style="color:var(--danger)" hidden></p>
       ${compList(COMPS, sel, 0)}</fieldset>`}
     <fieldset><legend>Objectif transverse (facultatif)</legend>
@@ -838,26 +1056,32 @@ function openEvalEditor(ev){
       <p class="hint">Coefficient 0 : la ligne est positionnée mais ne compte pas dans la note.</p></fieldset>
     <p class="small" id="fErr" style="color:var(--danger)" hidden></p>
     <div class="formactions"><button class="btn" type="button" data-act="modal-cancel">Annuler</button><button class="btn btn-primary" type="submit">${isNew ? 'Créer l\'évaluation' : 'Enregistrer'}</button></div></form>`);
+  autoTitle = isNew && ev.module ? ev.title : ''; autoCode = isNew && ev.module ? ev.code : '';
   $('#fTitle', m).focus(); checkFm();
 }
-function compRow(c, x, dom){
-  const def = UNIFIED && dom && c.unit !== dom ? 'Mobilisée' : CFG.defaultStatus;
+function defaultStatus(c, dom, mod){
+  const pl = mod ? planned(mod, actOf(c)) : '';
+  if (pl) return ST_FULL[pl];
+  return UNIFIED && dom && c.unit !== dom ? 'Mobilisée' : CFG.defaultStatus;
+}
+function compRow(c, x, dom, mod){
+  const def = defaultStatus(c, dom, mod);
   return `<div class="comprow"><label class="chk"><input type="checkbox" data-code="${c.code}"${x ? ' checked' : ''}><span><b>${c.code}</b> ${esc(c.short)}</span></label>
     <select class="inp" data-status="${c.code}" aria-label="Statut de ${c.code}">${STATUSES.map(st => `<option value="${esc(st)}"${(x ? (x.status || '') : def) === st ? ' selected' : ''}>${st || '(sans statut)'}</option>`).join('')}</select>
     <label class="w">Coef. <input type="number" min="0" max="10" step="0.5" value="${x ? num(x.weight, 1) : 1}" data-weight="${c.code}" aria-label="Coefficient ${c.code}"></label></div>`;
 }
-function compList(list, sel, dom){
-  return list.map((c, i) => { const g = actOf(c); const head = (i === 0 || actOf(list[i - 1]) !== g) && ACT[g] ? `<div class="compgroup"><b>${esc(g)}</b> ${esc(ACT[g].name)}</div>` : ''; return head + compRow(c, sel[c.code], dom); }).join('');
+function compList(list, sel, dom, mod){
+  return list.map((c, i) => { const g = actOf(c); const head = (i === 0 || actOf(list[i - 1]) !== g) && ACT[g] ? `<div class="compgroup"><b>${esc(g)}</b> ${esc(ACT[g].name)}<span class="planbadge" data-plan="${esc(g)}">${planBadge(mod, g)}</span></div>` : ''; return head + compRow(c, sel[c.code], dom, mod); }).join('');
 }
 /* BTS : pôle dominant demandé d'abord ; ses critères s'ouvrent en premier, les autres pôles restent disponibles (mobilisés). */
 function polePicker(ev, sel, isNew){
-  const dom = REF[ev.bloc] ? Number(ev.bloc) : 0;
+  const dom = REF[ev.bloc] ? Number(ev.bloc) : 0, mod = ev.module || '';
   const order = dom ? [dom, ...UNITS.filter(u => u !== dom)] : UNITS;
   return `<label class="fld domfld"><span>Pôle dominant évalué</span><select id="fDom" class="inp" required>
       <option value="">— Choisir le pôle dominant —</option>${UNITS.map(u => `<option value="${u}"${u === dom ? ' selected' : ''}>${esc(REF[u].label)}</option>`).join('')}</select></label>
     <fieldset id="fComps"><legend>Critères évalués</legend><p class="hint">${esc(CFG.compHint)}</p><p class="small" id="fFm" style="color:var(--danger)" hidden></p>
       ${order.map(u => { const n = REF[u].comps.filter(c => sel[c.code]).length;
-        return `<details class="polegroup pole-${u}" data-unit="${u}"${u === dom || n ? ' open' : ''}><summary><b>${poleCode(u)}</b> ${esc(poleShort(u))}<span class="dombadge"${u === dom ? '' : ' hidden'}>pôle dominant</span><span class="pgcount">${n ? n + ' coché' + (n > 1 ? 's' : '') : ''}</span></summary>${compList(REF[u].comps, sel, dom)}</details>`; }).join('')}</fieldset>`;
+        return `<details class="polegroup pole-${u}" data-unit="${u}"${u === dom || n ? ' open' : ''}><summary><b>${poleCode(u)}</b> ${esc(poleShort(u))}<span class="dombadge"${u === dom ? '' : ' hidden'}>pôle dominant</span><span class="pgcount">${n ? n + ' coché' + (n > 1 ? 's' : '') : ''}</span></summary>${compList(REF[u].comps, sel, dom, mod)}</details>`; }).join('')}</fieldset>`;
 }
 function onDomChange(){
   const m = $('#modal'); const dom = Number($('#fDom', m).value); const fs = $('#fComps', m); if (!fs) return;
@@ -865,8 +1089,33 @@ function onDomChange(){
     const u = Number(d.dataset.unit), isDom = u === dom;
     d.querySelector('.dombadge').hidden = !isDom;
     if (isDom){ d.open = true; fs.insertBefore(d, fs.querySelector('details.polegroup')); }
-    d.querySelectorAll('[data-code]').forEach(i => { if (!i.checked) m.querySelector(`[data-status="${i.dataset.code}"]`).value = !dom || isDom ? CFG.defaultStatus : 'Mobilisée'; });
   });
+  applyDefaults();
+}
+function applyDefaults(){
+  const m = $('#modal'); if (!m) return;
+  const dom = $('#fDom', m) ? Number($('#fDom', m).value) : 0, mod = $('#fMod', m) ? $('#fMod', m).value : '';
+  m.querySelectorAll('[data-code]').forEach(i => { if (!i.checked && COMP[i.dataset.code]) m.querySelector(`[data-status="${i.dataset.code}"]`).value = defaultStatus(COMP[i.dataset.code], dom, mod); });
+  m.querySelectorAll('[data-plan]').forEach(b => { b.innerHTML = planBadge(mod, b.dataset.plan); });
+}
+let autoTitle = '', autoCode = '';
+function onModChange(){
+  const m = $('#modal'); const mod = $('#fMod', m).value;
+  $('#fAct', m).innerHTML = actOptions(mod, '');
+  $('#fPlan', m).innerHTML = planText(mod);
+  const dom = $('#fDom', m);
+  if (mod && dom && !dom.value && domGuess(mod)){ dom.value = String(domGuess(mod)); onDomChange(); }
+  if (mod && !m.querySelector('[data-code]:checked')){
+    m.querySelectorAll('[data-code]').forEach(i => { if (planned(mod, actOf(COMP[i.dataset.code])) === 'FM'){ i.checked = true; m.querySelector(`[data-status="${i.dataset.code}"]`).value = 'Fortement mobilisée'; i.closest('details') && (i.closest('details').open = true); } });
+  }
+  applyDefaults(); onActChange();
+}
+function onActChange(){
+  const m = $('#modal'); const mod = $('#fMod', m).value, t = progAct(mod, $('#fAct', m).value);
+  const ti = $('#fTitle', m), co = $('#fCode', m);
+  const title = t ? (t.c ? t.c + ' — ' : '') + t.t : '', code = t && t.c ? t.c : '';
+  if (title && (!ti.value.trim() || ti.value === autoTitle)){ ti.value = title; autoTitle = title; }
+  if (code && (!co.value.trim() || co.value === autoCode)){ co.value = code; autoCode = code; }
 }
 function updatePoleCounts(){
   $('#modal').querySelectorAll('details.polegroup').forEach(d => { const n = d.querySelectorAll('[data-code]:checked').length; d.querySelector('.pgcount').textContent = n ? n + ' coché' + (n > 1 ? 's' : '') : ''; });
@@ -891,7 +1140,9 @@ async function submitEval(form){
   const id = form.dataset.id || newId(); const old = evById(id);
   if (old && !canEditEval(old)){ closeModal(); toast("Cette évaluation a été créée par un autre formateur : vous ne pouvez pas la modifier."); return; }
   const data = {classId:old ? old.classId : S.classId, bloc:UNIFIED ? dom : (old ? unitOf(old) : S.bloc), title, code:$('#fCode', m).value.trim(), date:$('#fDate', m).value || today(), type:$('#fType', m).value,
-    comps, transverse:trLabel ? {label:trLabel, weight:num($('#fTrW', m).value, 1)} : null, createdBy:old ? old.createdBy : S.me, createdAt:old ? (old.createdAt || new Date().toISOString()) : new Date().toISOString(), ...stamp()};
+    comps, transverse:trLabel ? {label:trLabel, weight:num($('#fTrW', m).value, 1)} : null,
+    module:$('#fMod', m) ? ($('#fMod', m).value || null) : (old ? old.module || null : null),
+    activity:$('#fAct', m) ? ($('#fAct', m).value || null) : (old ? old.activity || null : null), createdBy:old ? old.createdBy : S.me, createdAt:old ? (old.createdAt || new Date().toISOString()) : new Date().toISOString(), ...stamp()};
   closeModal();
   S.evals = S.evals.filter(e => e.id !== id).concat([{id, ...data}]);
   await setDoc('evaluations/' + id, data);
@@ -1060,6 +1311,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act;
   if (a === 'open'){ openPanel(b.dataset.ev, b.dataset.s); return; }
+  if (a === 'prog-year'){ S.progYear = b.dataset.y; LS.set(LSK('progyear'), S.progYear); scheduleRender(); return; }
   if (a === 'bloc'){ setBloc(+b.dataset.bloc); return; }
   if (a === 'p-close'){ closePanel(); return; }
   if (a === 'p-prev' || a === 'p-next'){
@@ -1069,7 +1321,7 @@ document.addEventListener('click', async e => {
   if (a === 'modal-cancel' || a === 'cancel-edit'){ if (a === 'modal-cancel') closeModal(); else { S.editing = null; S.builtKey = ''; render(); } return; }
   if (a === 'save-now'){ saveNow(); return; }
   if (!S.canWrite && !['export-eval','export-class'].includes(a)) return;
-  if (!S.admin && ['new-class','del-class','edit-student','del-student','del-examples'].includes(a)) return;
+  if (!S.admin && ['new-class','del-class','edit-student','del-student','del-examples','prog-import'].includes(a)) return;
   if ((a === 'edit-eval' || a === 'del-eval') && !canEditEval(evById(b.dataset.id))) return;
   if ((a === 'p-lv' || a === 'p-start' || a === 'p-end') && panelLocked()) return;
   if (a === 'p-validate'){ validateCurrent(b.dataset.next === '1'); return; }
@@ -1083,7 +1335,8 @@ document.addEventListener('click', async e => {
   }
   if (a === 'p-start'){ saveResult(evById(S.panel.evId), S.panel.sid, {start:new Date().toISOString(), end:null}); return; }
   if (a === 'p-end'){ const r = resFor(S.panel.evId, S.panel.sid) || {}; const now = new Date().toISOString(); saveResult(evById(S.panel.evId), S.panel.sid, r.start ? {end:now} : {start:now, end:now}); return; }
-  if (a === 'new-eval'){ openEvalEditor(null); return; }
+  if (a === 'new-eval'){ openEvalEditor(null, b.dataset.mod ? {module:b.dataset.mod, activity:b.dataset.actv || ''} : null); return; }
+  if (a === 'prog-import'){ importProgression(); return; }
   if (a === 'edit-eval'){ openEvalEditor(evById(b.dataset.id)); return; }
   if (a === 'export-eval'){ const ev = evById(b.dataset.id); if (ev) exportEval(ev); return; }
   if (a === 'export-class'){ exportClass(); return; }
@@ -1108,7 +1361,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.closest && t.closest('form[data-form="eval"]')){ if (t.id === 'fDom') onDomChange(); if (UNIFIED) updatePoleCounts(); checkFm(); }
+  if (t.closest && t.closest('form[data-form="eval"]')){ if (t.id === 'fMod') onModChange(); if (t.id === 'fAct') onActChange(); if (t.id === 'fDom') onDomChange(); if (UNIFIED) updatePoleCounts(); checkFm(); }
   if (t.id === 'classSel'){ if (t.value === '__new'){ if (S.canWrite && S.admin) openNewClass(); else renderClassSelect(); } else { setClass(t.value); location.hash = '#evaluations'; } return; }
   if (!S.canWrite) return;
   if (t.classList.contains('lvsel')){ const ev = evById(t.dataset.ev); if (ev) saveResult(ev, t.dataset.s, {levels:{[t.dataset.k]: t.value || null}}); return; }

@@ -88,6 +88,7 @@ const REF = {
 window.EVAL_CONFIG = {
   app:'bts', name:'Évaluations BTS MV', unitLabel:'Pôle', unitMark:'P', unitFile:'pole', defaultUnit:1,
   // Pôles non dissociés : toutes les évaluations ensemble, pôle dominant choisi à la création.
+  progression:true,   // onglet Progression (modules, activités) et analyse des évaluations module par module
   unified:true, scopeLabel:'4 pôles', unifiedMark:'MV', unifiedSub:'Pôles 1 à 4 · référentiel 2027',
   ref:REF,
   refSource:"référentiel BTS Maintenance des véhicules 2027, arrêté du 10 décembre 2025 ; une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Le bloc transversal et le découpage de C1.3 en trois lignes sont des choix de l'équipe",
