@@ -90,6 +90,8 @@ window.EVAL_CONFIG = {
   // Pôles non dissociés : toutes les évaluations ensemble, pôle dominant choisi à la création.
   progression:true,   // onglet Progression : l'artefact « Atelier BTS MV » tel quel, raccordé aux évaluations
   progressionBundle:'assets/progression-atelier.bin',
+  formation:'BTS Maintenance des véhicules',
+  bilanEpreuves:['E5', 'E7', 'E8'],   // bilan « épreuves » : pôles 1, 3 et 4 (E6 : pôle 2, relation clientèle)
   unified:true, scopeLabel:'4 pôles', unifiedMark:'MV', unifiedSub:'Pôles 1 à 4 · référentiel 2027',
   ref:REF,
   refSource:"référentiel BTS Maintenance des véhicules 2027, arrêté du 10 décembre 2025 ; une ligne = une rubrique de critères du J.O., indicateurs recopiés mot pour mot. Le bloc transversal et le découpage de C1.3 en trois lignes sont des choix de l'équipe",

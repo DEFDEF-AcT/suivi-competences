@@ -169,3 +169,69 @@ body.atelier-mode .atelier-msg{margin:22px max(16px,3vw)}
 .md-head .code{font:700 34px/1 'Barlow Condensed',Arial,sans-serif; white-space:nowrap}
 .md-head b{display:block; font:700 clamp(22px,2.6vw,30px)/1.05 'Barlow Condensed',Arial,sans-serif}
 .md-head small{font-size:14.5px; font-weight:500}
+
+/* ---------- Bilans de compétences (écran : aperçu ; impression : une page A4 par étudiant) ---------- */
+.bil-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px 16px; align-items:end; margin-bottom:18px}
+.bil-form .fld select, .bil-form .fld input{width:100%}
+.bil-form [hidden]{display:none !important}
+.bil-opts{grid-column:1/-1; display:flex; flex-wrap:wrap; gap:6px 20px; font-size:var(--fs-sm)}
+.bil-opts label{display:inline-flex; gap:6px; align-items:center; cursor:pointer}
+.bil-hint{grid-column:1/-1; margin:0}
+#bilOut{display:grid; gap:24px; justify-items:center; padding-bottom:30px}
+.bil-page{background:#fff; color:#152232; width:100%; max-width:210mm; padding:13mm 12mm; box-shadow:0 2px 14px rgba(20,35,60,.16); border-radius:4px; font-size:10pt; line-height:1.35; font-family:var(--font)}
+.bil-page, .bil-page *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+.bil-head{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; border-bottom:3px solid var(--navy); padding-bottom:7px}
+.bil-etab{font-weight:700; color:var(--navy); font-size:10.5pt}
+.bil-sub{color:var(--ink-2); font-size:9pt}
+.bil-doc{text-align:right; font-size:8.5pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.04em}
+.bil-doc b{display:block; font-size:11.5pt; color:var(--navy); text-transform:none; letter-spacing:0}
+.bil-who{margin:9px 0 4px}
+.bil-who h2{margin:0; font-size:17pt; color:var(--navy); line-height:1.15}
+.bil-meta{font-size:8.5pt; color:var(--ink-2)}
+.bil-part{margin-top:8px}
+.bil-part > h3{font-size:12pt; margin:10px 0 2px; color:var(--navy); border-left:4px solid var(--pole, var(--amber)); padding-left:8px}
+.bil-psub{font-size:8.5pt; color:var(--ink-2); margin:0 0 6px}
+.bil-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(30mm,1fr)); gap:6px; margin:6px 0 4px}
+.bil-stat{border:1px solid var(--line); border-radius:6px; padding:5px 8px; break-inside:avoid}
+.bil-stat > span{display:block; font-size:7pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.03em}
+.bil-stat b{font-size:13pt; color:var(--ink)}
+.bil-stat small{font-size:8.5pt; font-weight:400; color:var(--ink-2)}
+.bil-radar{text-align:center; break-inside:avoid}
+.bil-radar svg{width:100%; max-width:138mm; height:auto}
+.bil-legend{display:flex; flex-wrap:wrap; gap:3px 14px; justify-content:center; font-size:8pt; color:var(--ink-2); margin-top:-4px}
+.bil-table{width:100%; border-collapse:collapse; font-size:8pt; margin:6px 0}
+.bil-table th{background:#EEF2F7; text-align:left; padding:4px 6px; font-size:7.5pt; color:var(--navy); text-transform:uppercase; letter-spacing:.03em}
+.bil-table td{padding:3px 6px; border-bottom:1px solid #E3E8EF; vertical-align:top}
+.bil-table tr{break-inside:avoid}
+.bil-table .ctr{text-align:center} .bil-table .num{text-align:right; white-space:nowrap}
+.bil-table tr.bil-grp td{background:var(--pole-bg, #F3F6FA); color:var(--pole, var(--navy)); font-weight:700; border-bottom:1px solid var(--line)}
+.bil-table tfoot td{font-weight:700; border-top:2px solid var(--line); border-bottom:0}
+.bil-sum tr[class*="pole-"] td:first-child{border-left:4px solid var(--pole)}
+.bil-sum .pc{color:var(--pole)}
+.bil-table .lv{min-width:34px; padding:1px 4px; font-size:7.5pt}
+.bil-h{display:inline-flex; flex-direction:column; align-items:center; margin:0 3px 2px 0; vertical-align:top}
+.bil-h small{font-size:6.5pt; color:var(--ink-3)}
+.bil-lvs{display:flex; flex-wrap:wrap; gap:2px 7px}
+.bil-lvs span{display:inline-flex; gap:3px; align-items:center; font-size:7pt; color:var(--ink-2)}
+.bil-com{font-size:8pt; color:var(--ink-2); margin:1px 0 0}
+.bil-note{font-size:7.5pt; color:var(--ink-3); margin:0 0 4px}
+.bil-h4{font-size:9.5pt; color:var(--navy); margin:10px 0 2px}
+.bil-sign{display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-top:12px; break-inside:avoid}
+.bil-sign div{border:1px solid var(--line); border-radius:6px; min-height:27mm; padding:5px 8px; font-size:8.5pt; color:var(--ink-2)}
+.bil-foot{margin-top:10px; font-size:7.5pt; color:var(--ink-3); border-top:1px solid var(--line); padding-top:5px}
+.bil-bars{display:grid; gap:6px; max-width:150mm; margin:6px auto; text-align:left}
+.bb-row{display:grid; grid-template-columns:1fr 46mm auto; gap:8px; align-items:center; font-size:8.5pt}
+.bb-track{position:relative; height:10px; background:var(--surface-2); border-radius:5px}
+.bb-track i{position:absolute; inset:0 auto 0 0; background:var(--c-student); border-radius:5px}
+.bb-track em{position:absolute; top:-3px; width:3px; height:16px; background:var(--c-class); margin-left:-1px}
+@media screen and (max-width:720px){ .bil-page{padding:6mm 4mm} .bil-sign{grid-template-columns:1fr} .bil-head{flex-direction:column; align-items:flex-start} .bil-doc{text-align:left} }
+@media print{
+  @page{size:A4 portrait; margin:10mm}
+  body.bilan-mode{background:#fff}
+  body.bilan-mode > *:not(main){display:none !important}
+  body.bilan-mode #main{max-width:none; padding:0; margin:0}
+  body.bilan-mode .bil-tools{display:none !important}
+  body.bilan-mode #bilOut{display:block; padding:0}
+  .bil-page{box-shadow:none; border-radius:0; padding:0; max-width:none; width:auto; break-after:page}
+  .bil-page:last-child{break-after:auto}
+}
