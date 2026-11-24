@@ -712,7 +712,8 @@ S.bil = Object.assign({sid:'', scope:BIL_SCOPES[0], pole:DEFAULT_UNIT, bloc:S.bl
 if (!BIL_SCOPES.includes(S.bil.scope)) S.bil.scope = BIL_SCOPES[0];
 if (!REF[S.bil.pole]) S.bil.pole = DEFAULT_UNIT;
 if (!REF[S.bil.bloc]) S.bil.bloc = DEFAULT_UNIT;
-const bilSave = () => LS.set(LSK('bilan'), JSON.stringify(Object.fromEntries(BIL_KEEP.map(k => [k, S.bil[k]]))));
+// Le module n'est retenu d'une fois sur l'autre que s'il a été choisi à la main.
+const bilSave = () => LS.set(LSK('bilan'), JSON.stringify(Object.fromEntries(BIL_KEEP.filter(k => k !== 'module' || !S.bilModAuto).map(k => [k, S.bil[k]]))));
 const epLabel = e => e ? 'épreuve ' + e.code + (e.uc ? ' (' + e.uc + ')' : '') + (e.coef ? ', coefficient ' + e.coef : '') : '';
 
 function bilScopeLabel(o){
@@ -855,7 +856,7 @@ function bilPage(s, parts, o){
   const cls = S.classes.find(c => c.id === S.classId);
   const per = o.from || o.to ? 'Période : ' + (o.from ? 'du ' + fmtDate(o.from) : 'depuis le début') + ' ' + (o.to ? 'au ' + fmtDate(o.to) : "jusqu'à ce jour") : 'Toutes les évaluations de la classe';
   return `<article class="bil-page">
-    <header class="bil-head"><div><div class="bil-etab">${esc((window.APP_CONFIG && window.APP_CONFIG.etablissement) || '')}</div><div class="bil-sub">${esc(CFG.formation || CFG.name)}${cls ? ' · ' + esc(cls.name) : ''}</div></div>
+    <header class="bil-head"><div><div class="bil-etab">${esc((window.APP_CONFIG && window.APP_CONFIG.etablissement) || '')}</div><div class="bil-sub">${esc(CFG.formation || String(CFG.name).replace(/^Évaluations\s+/, ''))}${cls ? ' · ' + esc(cls.name) : ''}</div></div>
       <div class="bil-doc">Bilan de compétences<b>${esc(bilScopeLabel(o))}</b></div></header>
     <div class="bil-who"><h2>${esc(s.nom)} ${esc(s.prenom)}</h2><div class="bil-meta">${esc(per)} · édité le ${esc(fmtDate(today()))} · seuil d'acquisition : ${seuilLevel()}</div></div>
     ${parts.map(p => bilPartHtml(p, s, o)).join('')}
@@ -880,7 +881,11 @@ function bilFormSync(){
     if (mSel.dataset.sig !== msig){
       if (!units.length) mSel.innerHTML = `<option value="">${S.progErr ? 'Progression indisponible' : 'Chargement de la progression…'}</option>`;
       else {
-        if (!units.some(u => u.id === o.module)){ const w = units.find(u => moduleEvals(u.id).length) || units[0]; o.module = w.id; }
+        // Module proposé d'office : le premier qui a des évaluations (revu quand les évaluations arrivent),
+        // tant que vous n'en avez pas choisi un vous-même.
+        if (!units.some(u => u.id === o.module) || (S.bilModAuto && !moduleEvals(o.module).length)){
+          const w = units.find(u => moduleEvals(u.id).length) || units[0]; o.module = w.id; S.bilModAuto = true;
+        }
         mSel.innerHTML = [1, 2].map(y => { const L = units.filter(u => u.y === y); return L.length ? `<optgroup label="BTS ${y}">${L.map(u => { const n = moduleEvals(u.id).length; return `<option value="${esc(u.id)}"${u.id === o.module ? ' selected' : ''}>${esc(u.code)} · ${esc(u.title)}${n ? ' (' + n + ' éval.)' : ''}</option>`; }).join('')}</optgroup>` : ''; }).join('');
       }
       mSel.dataset.sig = msig;
@@ -894,7 +899,7 @@ function bilRead(){
   const sc = v('bilScope'); if (BIL_SCOPES.includes(sc)) S.bil.scope = sc;
   if (REF[Number(v('bilPole'))]) S.bil.pole = Number(v('bilPole'));
   if (REF[Number(v('bilBloc'))]) S.bil.bloc = Number(v('bilBloc'));
-  if (v('bilMod')) S.bil.module = v('bilMod');
+  if (v('bilMod') && v('bilMod') !== S.bil.module){ S.bil.module = v('bilMod'); S.bilModAuto = false; }
   bilSave(); bilFormSync(); renderBilans();
 }
 function renderBilans(){
