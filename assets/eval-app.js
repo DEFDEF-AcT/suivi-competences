@@ -693,10 +693,10 @@ VIEWS.synthese = {
 };
 
 /* ---------- Bilans de compétences (impression ou PDF, à tout moment) ----------
-   Une page par étudiant, ou toute la classe : toile des compétences, niveau de chaque compétence au
-   dernier positionnement sur la période choisie, évaluations prises en compte.
-   BTS : global (4 pôles), épreuves E5, E7 et E8, un pôle, ou un module de formation.
-   ISMI : un bloc, ou les deux blocs. */
+   Chaque feuille tient sur une page A4 (réduite automatiquement si elle déborde) :
+   BTS : global, les 4 pôles (1 page) ; par épreuve E5, E7, E8 (1 page chacune, moyenne pondérée des
+   épreuves en fin de bilan) ; un pôle (1 page) ; un module (1 page) ; l'ensemble des modules M1 à M15
+   (2 pages : tableau des modules, puis une toile par module).  ISMI : un bloc, ou les deux (1 page chacun). */
 const EPREUVES = UNIFIED ? UNITS.map(u => {
   const m = String(REF[u].modal || ''), t = String(REF[u].title || ''), e = (m.match(/^\s*(E\d+)/) || [])[1];
   return e ? {code:e, unit:u, uc:(t.match(/unité (U\d+)/) || [])[1] || '', coef:Number((m.match(/coefficient (\d+)/) || [])[1]) || null} : null;
@@ -705,9 +705,9 @@ const epOf = u => EPREUVES.find(e => e.unit === u) || null;
 const EP_BILAN = EPREUVES.filter(e => (CFG.bilanEpreuves || []).includes(e.code));
 const epTitle = e => 'Épreuve ' + e.code + ' · ' + REF[e.unit].label;
 const listFr = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' et ' + a[a.length - 1];
-const BIL_SCOPES = UNIFIED ? ['global', 'epreuves', 'pole', 'module'] : ['bloc', 'global'];
-const BIL_KEEP = ['scope', 'pole', 'ep', 'bloc', 'module', 'classe', 'evals', 'comments', 'sign'];
-S.bil = Object.assign({sid:'', scope:BIL_SCOPES[0], pole:DEFAULT_UNIT, ep:'all', bloc:S.bloc, module:'', from:'', to:'', classe:true, evals:true, comments:false, sign:true},
+const BIL_SCOPES = UNIFIED ? ['global', 'epreuves', 'pole', 'module', 'modules'] : ['bloc', 'global'];
+const BIL_KEEP = ['scope', 'pole', 'ep', 'bloc', 'module', 'classe', 'sign'];
+S.bil = Object.assign({sid:'', scope:BIL_SCOPES[0], pole:DEFAULT_UNIT, ep:'all', bloc:S.bloc, module:'', from:'', to:'', classe:true, sign:true},
   (() => { try { const o = JSON.parse(LS.get(LSK('bilan')) || '{}'); return Object.fromEntries(BIL_KEEP.filter(k => k in o).map(k => [k, o[k]])); } catch(e){ return {}; } })());
 if (!BIL_SCOPES.includes(S.bil.scope)) S.bil.scope = BIL_SCOPES[0];
 if (!REF[S.bil.pole]) S.bil.pole = DEFAULT_UNIT;
@@ -716,44 +716,53 @@ if (!REF[S.bil.bloc]) S.bil.bloc = DEFAULT_UNIT;
 // Le module n'est retenu d'une fois sur l'autre que s'il a été choisi à la main.
 const bilSave = () => LS.set(LSK('bilan'), JSON.stringify(Object.fromEntries(BIL_KEEP.filter(k => k !== 'module' || !S.bilModAuto).map(k => [k, S.bil[k]]))));
 const epLabel = e => e ? 'épreuve ' + e.code + (e.uc ? ' (' + e.uc + ')' : '') + (e.coef ? ', coefficient ' + e.coef : '') : '';
+// Les modules M1 à M15, en réunissant leurs parties (M1.1 et M1, M10 et M10 A2, M13.1 et M13.2…).
+const bilModules = () => {
+  if (!S.prog) return [];
+  const g = new Map();
+  S.prog.units.forEach(u => { const m = /^M(\d+)\b/.exec(u.code || ''); if (!m) return; const k = Number(m[1]); if (!g.has(k)) g.set(k, []); g.get(k).push(u); });
+  return [...g.entries()].sort((a, b) => a[0] - b[0]).map(([k, us]) => {
+    const main = us.find(u => u.code === 'M' + k), pre = us.map(u => String(u.title || '').split(' : ')[0]);
+    return {code:'M' + k, ids:us.map(u => u.id), units:us, title:main ? main.title : (pre.every(p => p === pre[0]) ? pre[0] : us[0].title),
+      per:[...new Set(us.map(perLabel).filter(Boolean))].join(' + '), parts:us.length > 1 ? us.map(u => u.code).join(' + ') : ''};
+  });
+};
+const ST_RANK = {A:1, M:2, FM:3};
+const plOf = (mod, comp) => mod.ids.map(id => planned(id, comp)).filter(Boolean).sort((a, b) => ST_RANK[b] - ST_RANK[a])[0] || '';
+const modTitle = () => { const m = bilModules(); return 'Ensemble des modules' + (m.length ? ' · ' + m[0].code + ' à ' + m[m.length - 1].code : ''); };
 
 function bilScopeLabel(o){
   if (!UNIFIED) return o.scope === 'global' ? UNITS.map(u => UNIT + ' ' + u).join(' et ') : REF[o.bloc].label;
   if (o.scope === 'global') return 'Bilan global · ' + CFG.scopeLabel;
   if (o.scope === 'epreuves'){ const e = EP_BILAN.find(x => x.code === o.ep); return e ? epTitle(e) : 'Épreuves ' + listFr(EP_BILAN.map(x => x.code)) + ', une par une'; }
   if (o.scope === 'pole'){ const e = epOf(o.pole); return REF[o.pole].label + (e ? ' · épreuve ' + e.code : ''); }
+  if (o.scope === 'modules') return modTitle();
   const u = progUnit(o.module); return u ? 'Module ' + u.code + ' · ' + u.title : 'Module de formation';
 }
-// Les parties d'un bilan : évaluations retenues (période, module, bloc) et critères concernés.
-function bilParts(o){
-  const E = S.evals.filter(ev => (!o.from || String(ev.date || '') >= o.from) && (!o.to || String(ev.date || '') <= o.to))
-    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+const bilPeriod = o => S.evals.filter(ev => (!o.from || String(ev.date || '') >= o.from) && (!o.to || String(ev.date || '') <= o.to))
+  .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+// Les parties d'un bilan : une partie = une feuille (évaluations retenues et critères concernés).
+function bilParts(o, E){
   if (!UNIFIED){
-    return (o.scope === 'global' ? UNITS : [o.bloc]).map(b => ({key:'b' + b, title:REF[b].label, sub:REF[b].title || '', evs:E.filter(ev => unitOf(ev) === b), crits:REF[b].comps, acts:REF[b].acts, mode:'crits'}));
+    return (o.scope === 'global' ? UNITS : [o.bloc]).map(b => ({key:'b' + b, doc:REF[b].label, title:REF[b].label, sub:REF[b].title || '', evs:E.filter(ev => unitOf(ev) === b), crits:REF[b].comps, acts:REF[b].acts, mode:'crits'}));
   }
-  if (o.scope === 'pole'){
-    const u = o.pole, e = epOf(u);
-    return [{key:'p' + u, title:REF[u].label, sub:(e ? 'Épreuve ' + e.code + (e.uc ? ' · unité ' + e.uc : '') + (e.coef ? ' · coefficient ' + e.coef : '') + '. ' : '') + 'Tous les critères du pôle, quel que soit le pôle dominant de l\'évaluation.', pole:u, evs:E, crits:REF[u].comps, acts:REF[u].acts, units:[u], mode:'crits', note:true}];
+  if (o.scope === 'pole' || o.scope === 'epreuves'){
+    const units = o.scope === 'pole' ? [o.pole] : EP_BILAN.filter(e => o.ep === 'all' || e.code === o.ep).map(e => e.unit);
+    return units.map(u => {
+      const e = epOf(u), m = String(REF[u].modal || '').replace(/^\s*E\d+,\s*/, '').replace(/\s*·\s*coefficient \d+\.?\s*$/, '');
+      return {key:'p' + u, doc:o.scope === 'epreuves' && e ? epTitle(e) : bilScopeLabel(o), title:e ? epTitle(e) : REF[u].label, pole:u, evs:E, crits:REF[u].comps, acts:REF[u].acts, units:[u], mode:'crits', note:true,
+        sub:[e && e.uc ? 'Unité ' + e.uc : '', e && e.coef ? 'coefficient ' + e.coef : '', m ? m.charAt(0).toUpperCase() + m.slice(1) : ''].filter(Boolean).join(' · ') + '. Tous les critères du pôle ' + u + ', quel que soit le pôle dominant de l\'évaluation.'};
+    });
   }
   if (o.scope === 'module'){
     const u = progUnit(o.module), evs = E.filter(ev => ev.module === o.module);
     const inEvs = code => evs.some(ev => (ev.comps || []).some(c => COMP[c.code] && actOf(COMP[c.code]) === code));
     const acts = ALL_ACTS.filter(a => (!/^T/.test(a.code) && planned(o.module, a.code)) || inEvs(a.code));
-    const crits = ALL_COMPS.filter(c => acts.some(a => a.code === actOf(c)));
-    const plan = acts.filter(a => planned(o.module, a.code)).map(a => a.code + ' ' + planned(o.module, a.code));
-    return [{key:'m', title:u ? u.code + ' · ' + u.title : 'Module', sub:[u ? perLabel(u) : '', plan.length ? 'Prévu dans la progression : ' + plan.join(', ') : ''].filter(Boolean).join(' · '),
-      module:o.module, evs, crits, acts, units:UNITS.filter(x => acts.some(a => a.unit === x)), mode:acts.length >= 3 ? 'acts' : 'crits', group:'pole'}];
+    return [{key:'m', doc:bilScopeLabel(o), title:u ? u.code + ' · ' + u.title : 'Module', sub:u ? perLabel(u) : '', module:o.module, evs,
+      crits:ALL_COMPS.filter(c => acts.some(a => a.code === actOf(c))), acts, units:UNITS.filter(x => acts.some(a => a.unit === x)), mode:acts.length >= 3 ? 'acts' : 'crits'}];
   }
-  if (o.scope === 'epreuves'){
-    // Une épreuve = un bilan à part (en-tête, toile, note indicative, évaluations, signatures, pages à elle).
-    return EP_BILAN.filter(e => o.ep === 'all' || e.code === o.ep).map(e => {
-      const m = String(REF[e.unit].modal || '').replace(/^\s*E\d+,\s*/, '').replace(/\s*·\s*coefficient \d+\.?\s*$/, '');
-      return {key:'e' + e.code, doc:epTitle(e), title:epTitle(e), pole:e.unit, evs:E, crits:REF[e.unit].comps, acts:REF[e.unit].acts, units:[e.unit], mode:'crits', note:true, separate:true,
-        sub:[e.uc ? 'Unité ' + e.uc : '', e.coef ? 'coefficient ' + e.coef : '', m ? m.charAt(0).toUpperCase() + m.slice(1) : ''].filter(Boolean).join(' · ') + '. Tous les critères du pôle ' + e.unit + ', quel que soit le pôle dominant de l\'évaluation.'};
-    });
-  }
-  return [{key:o.scope, title:'Les ' + UNITS.length + ' pôles et leurs compétences', sub:'Chaque compétence : niveau moyen de ses critères, au dernier positionnement.',
-    evs:E, crits:ALL_COMPS, acts:ALL_ACTS, units:UNITS, mode:'acts', group:'pole'}];
+  return [{key:'g', doc:bilScopeLabel(o), title:'Les ' + UNITS.length + ' pôles et leurs compétences', sub:'Chaque compétence : niveau moyen de ses critères, au dernier positionnement sur la période.',
+    evs:E, crits:ALL_COMPS, acts:ALL_ACTS, units:UNITS, mode:'acts'}];
 }
 function lastIn(evs, sid, code){
   for (let i = evs.length - 1; i >= 0; i--){
@@ -768,6 +777,7 @@ function histIn(evs, sid, code){
   for (const ev of evs){ if (!(ev.comps || []).some(c => c.code === code)) continue; const r = resFor(ev.id, sid), lv = r && !r.absent && r.levels && r.levels[code]; if (lv) out.push({ev, lv}); }
   return out;
 }
+const lastMap = (evs, sid, crits) => { const m = {}; crits.forEach(c => { const l = lastIn(evs, sid, c.code); if (l) m[c.code] = l; }); return m; };
 // Données de la classe, calculées une fois par partie.
 function bilPrepare(p){
   const set = new Set(p.crits.map(c => c.code));
@@ -783,91 +793,138 @@ function bilStats(last, crits){
   return {n:crits.length, pos:pos.length, avg:avgOf(vals), acq:vals.filter(v => v >= si).length, note:pos.length ? avgOf(pos.map(c => P[last[c.code].lv]).filter(x => x != null)) : null};
 }
 const bilChip = v => v == null ? '<span class="lv lv-none">—</span>' : lvChip(lvOfAvg(v), fmtNote(v) + ' sur 4');
-const bilGroupLabel = u => REF[u].label + (epOf(u) ? ' · ' + epLabel(epOf(u)) : '');
+const note20 = v => v == null ? '—' : fmtNote(v) + '<small> / 20</small>';
+const evNotes = (evs, sid, critSet) => evs.filter(ev => (ev.comps || []).some(c => critSet.has(c.code))).map(ev => finalNote(ev, resFor(ev.id, sid))).filter(n => n != null);
 function bilBars(items){
   return `<div class="bil-bars">${items.map(it => `<div class="bb-row"><span class="bb-l"><b>${esc(it.code)}</b> ${esc(it.short)}</span><span class="bb-track"><i style="width:${((it.v || 0) * 25).toFixed(1)}%"></i>${it.avg != null ? `<em style="left:${(it.avg * 25).toFixed(1)}%" title="Moyenne de la classe"></em>` : ''}</span>${it.lv ? lvChip(it.lv) : '<span class="lv lv-none">—</span>'}</div>`).join('')}</div>`;
 }
-function bilPartHtml(p, s, o){
-  const last = {}; p.crits.forEach(c => { const l = lastIn(p.evs, s.id, c.code); if (l) last[c.code] = l; });
-  const st = bilStats(last, p.crits), seuil = seuilLevel();
-  const myEvs = p.evs.filter(ev => resFor(ev.id, s.id) && (ev.comps || []).some(c => p.critSet.has(c.code)));
-  const notes = myEvs.map(ev => finalNote(ev, resFor(ev.id, s.id))).filter(n => n != null);
-  const actsOf = code => p.crits.filter(c => actOf(c) === code);
-  // Toile
-  let items, actAvg = {};
-  if (p.mode === 'acts'){
-    const grp = a => poleCode(a.unit);
-    items = p.acts.map(a => {
-      const cs = actsOf(a.code), mine = cs.map(c => last[c.code]).filter(Boolean).map(l => lvNum(l.lv)), v = avgOf(mine);
-      return {code:a.code, short:a.band, act:grp(a), na:!cs.some(c => p.used.has(c.code)), v:v || 0, lv:lvOfAvg(v), title:v ? 'moyenne de ' + mine.length + ' critère' + (mine.length > 1 ? 's' : '') : '', avg:o.classe ? avgOf(cs.map(c => p.classCrit[c.code]).filter(x => x != null)) : null};
-    });
-    p.units.forEach(u => { actAvg[poleCode(u)] = bilStats(last, p.crits.filter(c => c.unit === u)).avg; });
-  } else {
-    items = p.crits.map(c => { const l = last[c.code]; return {code:c.code, short:c.short, act:actOf(c), na:!p.used.has(c.code), v:l ? lvNum(l.lv) : 0, lv:l && l.lv, title:l && l.ev.title, avg:o.classe ? p.classCrit[c.code] : null}; });
-    p.acts.forEach(a => { actAvg[a.code] = bilStats(last, actsOf(a.code)).avg; });
-  }
-  const chart = items.length >= 3 ? radarSVG(620, items, lvNum(seuil), fullName(s), actAvg) : bilBars(items);
-  const legend = `<div class="bil-legend"><span><i class="sw sw-poly"></i>${esc(fullName(s))}</span>${o.classe ? '<span><i class="sw sw-line2"></i>Moyenne de la classe</span>' : ''}<span><i class="sw sw-zone"></i>Zone d'acquisition (${seuil} ou plus)</span><span>En gris : pas évalué sur la période</span></div>`;
-  // Chiffres clés
-  const stats = `<div class="bil-stats">
-    <div class="bil-stat"><span>Évaluations prises en compte</span><b>${myEvs.length}</b></div>
-    <div class="bil-stat"><span>Moyenne des notes</span><b>${notes.length ? fmtNote(avgOf(notes)) + '<small> / 20</small>' : '—'}</b></div>
-    <div class="bil-stat"><span>Niveau moyen</span><b>${bilChip(st.avg)}</b></div>
-    <div class="bil-stat"><span>${esc(W.acquired)} (${seuil} ou plus)</span><b>${st.pos ? st.acq + '<small> / ' + st.pos + ' positionné' + (st.pos > 1 ? 's' : '') + '</small>' : '—'}</b></div>
-    ${p.note ? `<div class="bil-stat"><span>Note indicative (barème)</span><b>${st.note == null ? '—' : fmtNote(st.note) + '<small> / 20</small>'}</b></div>` : ''}</div>`;
-  // Synthèse par pôle ou par épreuve (BTS)
-  let sum = '';
-  if (UNIFIED && p.mode === 'acts' && p.key !== 'm'){
-    const rows = p.units.map(u => ({u, e:epOf(u), st:bilStats(last, p.crits.filter(c => c.unit === u))}));
-    sum = `<table class="bil-table bil-sum"><thead><tr><th>Pôle</th><th class="ctr">Niveau moyen</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th><th class="num">Note indicative</th></tr></thead>
-      <tbody>${rows.map(r => `<tr class="pole-${r.u}"><td><b class="pc">${poleCode(r.u)}</b> ${esc(REF[r.u].label + (r.e ? ' (' + r.e.code + ')' : ''))}</td><td class="ctr">${bilChip(r.st.avg)}</td><td class="ctr">${r.st.pos} / ${r.st.n}</td><td class="ctr">${r.st.pos ? r.st.acq : '—'}</td><td class="num"><b>${r.st.note == null ? '—' : fmtNote(r.st.note) + ' / 20'}</b></td></tr>`).join('')}</tbody></table>`;
-  }
-  // Détail
-  let det;
-  if (p.mode === 'acts'){
-    const isMod = p.key === 'm';
-    det = `<table class="bil-table"><thead><tr><th>Compétence</th>${isMod ? '<th class="ctr">Prévu</th>' : ''}<th class="ctr">Niveau</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th></tr></thead><tbody>${p.units.map(u => {
-      const acts = p.acts.filter(a => a.unit === u); if (!acts.length) return '';
-      return `<tr class="bil-grp pole-${u}"><td colspan="${isMod ? 5 : 4}">${esc(bilGroupLabel(u))}</td></tr>` + acts.map(a => { const x = bilStats(last, actsOf(a.code)); return `<tr><td><b>${esc(a.code)}</b> ${esc(a.name)}</td>${isMod ? `<td class="ctr">${stChip(planned(p.module, a.code))}</td>` : ''}<td class="ctr">${bilChip(x.avg)}</td><td class="ctr">${x.pos} / ${x.n}</td><td class="ctr">${x.pos ? x.acq : '—'}</td></tr>`; }).join('');
-    }).join('')}</tbody></table>`;
-  } else {
-    det = `<table class="bil-table"><thead><tr><th>${esc(W.comp.charAt(0).toUpperCase() + W.comp.slice(1))}</th><th>Positionnements sur la période</th><th class="ctr">Niveau</th></tr></thead><tbody>${p.acts.map(a => {
-      const cs = actsOf(a.code); if (!cs.length) return '';
-      return `<tr class="bil-grp${UNIFIED ? ' pole-' + a.unit : ''}"><td colspan="2"><b>${esc(a.code)}</b> ${esc(a.name)}</td><td class="ctr">${bilChip(bilStats(last, cs).avg)}</td></tr>` + cs.map(c => {
-        const h = histIn(p.evs, s.id, c.code), more = h.length > 8;
-        return `<tr><td><b>${esc(c.code)}</b> ${esc(c.short)}</td><td>${h.length ? (more ? '<span class="xs muted">… </span>' : '') + h.slice(-8).map(x => `<span class="bil-h">${lvChip(x.lv)}<small>${esc(fmtDateShort(x.ev.date))}</small></span>`).join('') : `<span class="xs muted">${p.used.has(c.code) ? 'pas encore positionné' : 'non évalué sur la période'}</span>`}</td><td class="ctr">${lvChip(last[c.code] && last[c.code].lv)}</td></tr>`;
-      }).join('');
-    }).join('')}</tbody></table>`;
-  }
-  // Évaluations prises en compte
-  let evHtml = '';
-  if (o.evals){
-    evHtml = `<h4 class="bil-h4">Évaluations prises en compte</h4>` + (myEvs.length ? `<table class="bil-table bil-ev"><thead><tr><th>Date</th><th>Évaluation</th><th>Niveaux</th><th class="num">Note</th></tr></thead><tbody>${myEvs.map(ev => {
-      const r = resFor(ev.id, s.id), mu = UNIFIED && ev.module && progUnit(ev.module);
-      const lvs = (ev.comps || []).filter(c => p.critSet.has(c.code)).map(c => { const lv = r && !r.absent && r.levels && r.levels[c.code]; return lv ? `<span><small>${esc(c.code)}</small>${lvChip(lv)}</span>` : ''; }).join('');
-      const com = o.comments && r ? [r.oral ? `<div class="bil-com"><b>Oral :</b> ${esc(r.oral)}</div>` : '', r.comment ? `<div class="bil-com"><b>Commentaire :</b> ${esc(r.comment)}</div>` : ''].join('') : '';
-      return `<tr><td class="num">${esc(fmtDateShort(ev.date))}</td><td><b>${esc(ev.title)}</b><div class="bil-com">${[ev.code, ev.type, mu ? mu.code + (ev.activity ? ' · ' + ev.activity : '') : '', UNIFIED && REF[ev.bloc] ? poleCode(ev.bloc) + ' dominant' : ''].filter(Boolean).map(esc).join(' · ')}</div>${com}</td>
-        <td>${r && r.absent ? '<span class="chip">Absent</span>' : `<div class="bil-lvs">${lvs || '<span class="xs muted">—</span>'}</div>`}</td><td class="num"><b>${r && r.absent ? 'ABS' : fmtNote(finalNote(ev, r))}</b></td></tr>`;
-    }).join('')}</tbody></table>` : `<p class="bil-com">Aucune évaluation de ce périmètre sur la période.</p>`);
-  }
-  const poleCls = p.pole ? ' pole-' + p.pole : '';
-  return `<section class="bil-part${poleCls}"><h3>${esc(p.title)}</h3>${p.sub ? `<p class="bil-psub">${esc(p.sub)}</p>` : ''}
-    ${stats}<div class="bil-radar">${p.crits.some(c => p.used.has(c.code)) ? chart + legend : '<p class="bil-com">Aucun positionnement sur ce périmètre pour la période choisie.</p>'}</div>
-    ${sum}${sum ? `<p class="bil-note">Note indicative : moyenne des points du dernier positionnement de chaque critère (barème de la classe : ${LEVELS.map(k => k + ' ' + fmtNote(points()[k])).join(' · ')}). Elle ne remplace pas la grille officielle de l'épreuve.</p>` : ''}
-    ${det}${evHtml}</section>`;
-}
-function bilPage(s, parts, o){
+const bilLegend = (s, o) => `<div class="bil-legend"><span><i class="sw sw-poly"></i>${esc(fullName(s))}</span>${o.classe ? '<span><i class="sw sw-line2"></i>Moyenne de la classe</span>' : ''}<span><i class="sw sw-zone"></i>${seuilLevel()} ou plus</span><span>En gris : non évalué</span></div>`;
+const statTile = (label, val) => `<div class="bil-stat"><span>${label}</span><b>${val}</b></div>`;
+
+// Feuille : en-tête commun, contenu, signatures, pied de page.
+function bilSheet(s, o, label, body, opts = {}){
   const cls = S.classes.find(c => c.id === S.classId);
   const per = o.from || o.to ? 'Période : ' + (o.from ? 'du ' + fmtDate(o.from) : 'depuis le début') + ' ' + (o.to ? 'au ' + fmtDate(o.to) : "jusqu'à ce jour") : 'Toutes les évaluations de la classe';
-  return `<article class="bil-page">
+  const foot = [`Échelle : ${LEVELS.map(k => k + ' ' + LEVEL_NAME[k].toLowerCase()).join(' · ')}. Niveau d'un ${esc(W.comp)} : son dernier positionnement sur la période ; d'une compétence : la moyenne de ses ${esc(W.comps)} positionnés.`,
+    opts.note ? `Note indicative : moyenne des points du dernier positionnement de chaque critère (barème de la classe : ${LEVELS.map(k => k + ' ' + fmtNote(points()[k])).join(' · ')}) ; elle ne remplace pas la grille officielle de l'épreuve.` : ''].filter(Boolean).join(' ');
+  return `<article class="bil-page"><div class="bil-sheet">
     <header class="bil-head"><div><div class="bil-etab">${esc((window.APP_CONFIG && window.APP_CONFIG.etablissement) || '')}</div><div class="bil-sub">${esc(CFG.formation || String(CFG.name).replace(/^Évaluations\s+/, ''))}${cls ? ' · ' + esc(cls.name) : ''}</div></div>
-      <div class="bil-doc">Bilan de compétences<b>${esc(parts.length === 1 && parts[0].doc ? parts[0].doc : bilScopeLabel(o))}</b></div></header>
+      <div class="bil-doc">Bilan de compétences<b>${esc(label)}</b></div></header>
     <div class="bil-who"><h2>${esc(s.nom)} ${esc(s.prenom)}</h2><div class="bil-meta">${esc(per)} · édité le ${esc(fmtDate(today()))} · seuil d'acquisition : ${seuilLevel()}</div></div>
-    ${parts.map(p => bilPartHtml(p, s, o)).join('')}
-    ${o.sign ? `<div class="bil-sign"><div>Appréciation du formateur</div><div>Le formateur<br><span class="xs">date et signature</span></div><div>L'étudiant(e)<br><span class="xs">date et signature</span></div></div>` : ''}
-    <footer class="bil-foot">Échelle : ${LEVELS.map(k => k + ' ' + LEVEL_NAME[k].toLowerCase()).join(' · ')}. Le niveau d'un ${esc(W.comp)} est son dernier positionnement sur la période ; celui d'une compétence, la moyenne de ses ${esc(W.comps)} positionnés.</footer>
-  </article>`;
+    ${body}
+    ${o.sign && opts.sign !== false ? `<div class="bil-sign"><div>Appréciation du formateur</div><div>Le formateur<br><span class="xs">date et signature</span></div><div>L'étudiant(e)<br><span class="xs">date et signature</span></div></div>` : ''}
+    <footer class="bil-foot">${foot}</footer></div></article>`;
 }
+
+// Une partie « critères » : un pôle, une épreuve, un bloc ISMI (toile des critères, détail critère par critère).
+function bodyCrits(p, s, o){
+  const last = lastMap(p.evs, s.id, p.crits), st = bilStats(last, p.crits), seuil = seuilLevel(), notes = evNotes(p.evs, s.id, p.critSet);
+  const actsOf = code => p.crits.filter(c => actOf(c) === code), acts = p.acts.filter(a => actsOf(a.code).length);
+  const items = p.crits.map(c => { const l = last[c.code]; return {code:c.code, short:c.short, act:actOf(c), na:!p.used.has(c.code), v:l ? lvNum(l.lv) : 0, lv:l && l.lv, title:l && l.ev.title, avg:o.classe ? p.classCrit[c.code] : null}; });
+  const actAvg = {}; acts.forEach(a => { actAvg[a.code] = bilStats(last, actsOf(a.code)).avg; });
+  const chart = !p.crits.some(c => p.used.has(c.code)) ? '<p class="bil-com">Aucun positionnement sur ce périmètre pour la période choisie.</p>'
+    : (items.length >= 3 ? radarSVG(540, items, lvNum(seuil), fullName(s), actAvg) : bilBars(items)) + bilLegend(s, o);
+  const side = acts.map(a => { const x = bilStats(last, actsOf(a.code)); return `<div class="bil-tile${UNIFIED ? ' pole-' + a.unit : ''}"><div><b>${esc(a.code)}</b> ${esc(a.band || '')}</div><div class="bt-r">${bilChip(x.avg)}<span>${x.pos} / ${x.n} positionné${x.pos > 1 ? 's' : ''}${x.pos ? ' · ' + x.acq + ' acquis' : ''}</span></div></div>`; }).join('');
+  const det = `<table class="bil-table bil-det"><colgroup><col style="width:47%"><col style="width:39%"><col style="width:14%"></colgroup>
+    <thead><tr><th>${esc(W.comp.charAt(0).toUpperCase() + W.comp.slice(1))}</th><th>Positionnements (les plus récents)</th><th class="ctr">Niveau</th></tr></thead><tbody>${acts.map(a => {
+      const cs = actsOf(a.code);
+      return `<tr class="bil-grp${UNIFIED ? ' pole-' + a.unit : ''}"><td colspan="2" class="el"><b>${esc(a.code)}</b> ${esc(a.name)}</td><td class="ctr">${bilChip(bilStats(last, cs).avg)}</td></tr>` + cs.map(c => {
+        const h = histIn(p.evs, s.id, c.code);
+        return `<tr><td class="el"><b>${esc(c.code)}</b> ${esc(c.short)}</td><td class="el">${h.length ? (h.length > 4 ? '<span class="bh-more">…</span>' : '') + h.slice(-4).map(x => `<span class="bh">${lvChip(x.lv)}<i>${esc(fmtDateShort(x.ev.date))}</i></span>`).join('') : `<span class="xs muted">${p.used.has(c.code) ? 'pas encore positionné' : 'non évalué'}</span>`}</td><td class="ctr">${lvChip(last[c.code] && last[c.code].lv)}</td></tr>`;
+      }).join('');
+    }).join('')}</tbody></table>`;
+  return `<section class="bil-part${p.pole ? ' pole-' + p.pole : ''}"><h3>${esc(p.title)}</h3>${p.sub ? `<p class="bil-psub">${esc(p.sub)}</p>` : ''}
+    <div class="bil-stats">${statTile('Moyenne des notes', notes.length ? note20(avgOf(notes)) : '—')}${statTile('Niveau moyen', bilChip(st.avg))}${statTile(esc(W.acquired) + ' (' + seuil + ' ou plus)', st.pos ? st.acq + '<small> / ' + st.pos + ' positionné' + (st.pos > 1 ? 's' : '') + '</small>' : '—')}${p.note ? statTile('Note indicative', note20(st.note)) : ''}</div>
+    <div class="bil-top"><div class="bil-radar">${chart}</div><div class="bil-side">${side}</div></div>${det}</section>`;
+}
+// Une partie « compétences » : bilan global (4 pôles) ou un module.
+function bodyActs(p, s, o){
+  const last = lastMap(p.evs, s.id, p.crits), st = bilStats(last, p.crits), seuil = seuilLevel(), notes = evNotes(p.evs, s.id, p.critSet), isMod = p.key === 'm';
+  const actsOf = code => p.crits.filter(c => actOf(c) === code);
+  const items = p.acts.map(a => {
+    const cs = actsOf(a.code), mine = cs.map(c => last[c.code]).filter(Boolean).map(l => lvNum(l.lv)), v = avgOf(mine);
+    return {code:a.code, short:a.band, act:poleCode(a.unit), na:!cs.some(c => p.used.has(c.code)), v:v || 0, lv:lvOfAvg(v), title:v ? 'moyenne de ' + mine.length + ' critère' + (mine.length > 1 ? 's' : '') : '', avg:o.classe ? avgOf(cs.map(c => p.classCrit[c.code]).filter(x => x != null)) : null};
+  });
+  const actAvg = {}; p.units.forEach(u => { actAvg[poleCode(u)] = bilStats(last, p.crits.filter(c => c.unit === u)).avg; });
+  const chart = !p.crits.some(c => p.used.has(c.code)) ? '<p class="bil-com">Aucun positionnement sur ce périmètre pour la période choisie.</p>' : radarSVG(540, items, lvNum(seuil), fullName(s), actAvg) + bilLegend(s, o);
+  const side = isMod
+    ? `<div class="bil-tile"><div><b>Prévu dans la progression</b></div><div class="bt-plan">${p.acts.filter(a => planned(p.module, a.code)).map(a => `<span>${esc(a.code)} ${stChip(planned(p.module, a.code))}</span>`).join('') || '<span class="xs muted">—</span>'}</div></div>`
+    : p.units.map(u => { const e = epOf(u), x = bilStats(last, p.crits.filter(c => c.unit === u)); return `<div class="bil-tile pole-${u}"><div><b>${poleCode(u)}</b> ${esc(poleShort(u))}${e ? ` <span class="xs">· ${e.code}${e.coef ? ' coef. ' + e.coef : ''}</span>` : ''}</div><div class="bt-r">${bilChip(x.avg)}<span>${x.pos} / ${x.n} critères</span><b>${note20(x.note)}</b></div></div>`; }).join('');
+  const det = `<table class="bil-table bil-det"><colgroup><col style="width:${isMod ? 52 : 60}%">${isMod ? '<col style="width:10%">' : ''}<col style="width:12%"><col style="width:16%"><col style="width:12%"></colgroup>
+    <thead><tr><th>Compétence</th>${isMod ? '<th class="ctr">Prévu</th>' : ''}<th class="ctr">Niveau</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th></tr></thead><tbody>${p.units.map(u => {
+      const acts = p.acts.filter(a => a.unit === u); if (!acts.length) return '';
+      return `<tr class="bil-grp pole-${u}"><td colspan="${isMod ? 5 : 4}" class="el">${esc(REF[u].label + (epOf(u) ? ' · ' + epLabel(epOf(u)) : ''))}</td></tr>` + acts.map(a => { const x = bilStats(last, actsOf(a.code)); return `<tr><td class="el"><b>${esc(a.code)}</b> ${esc(a.name)}</td>${isMod ? `<td class="ctr">${stChip(planned(p.module, a.code))}</td>` : ''}<td class="ctr">${bilChip(x.avg)}</td><td class="ctr">${x.pos} / ${x.n}</td><td class="ctr">${x.pos ? x.acq : '—'}</td></tr>`; }).join('');
+    }).join('')}</tbody></table>`;
+  return `<section class="bil-part"><h3>${esc(p.title)}</h3>${p.sub ? `<p class="bil-psub">${esc(p.sub)}</p>` : ''}
+    <div class="bil-stats">${statTile('Moyenne des notes', notes.length ? note20(avgOf(notes)) : '—')}${statTile('Niveau moyen', bilChip(st.avg))}${statTile(esc(W.acquired) + ' (' + seuil + ' ou plus)', st.pos ? st.acq + '<small> / ' + st.pos + ' positionné' + (st.pos > 1 ? 's' : '') + '</small>' : '—')}${!isMod ? statTile('Note indicative', note20(st.note)) : ''}</div>
+    <div class="bil-top"><div class="bil-radar">${chart}</div><div class="bil-side">${side}</div></div>${det}</section>`;
+}
+// Fin du bilan par épreuve : les trois épreuves et leur moyenne pondérée par les coefficients.
+function recapEpreuves(s, E){
+  const rows = EP_BILAN.map(e => ({e, st:bilStats(lastMap(E, s.id, REF[e.unit].comps), REF[e.unit].comps)}));
+  const pond = rows.filter(r => r.e.coef && r.st.note != null);
+  const tot = pond.length ? pond.reduce((n, r) => n + r.e.coef * r.st.note, 0) / pond.reduce((n, r) => n + r.e.coef, 0) : null;
+  return `<div class="bil-recap"><h4>Récapitulatif des épreuves ${esc(listFr(EP_BILAN.map(e => e.code)))}</h4>
+    <table class="bil-table bil-sum"><thead><tr><th>Épreuve</th><th class="ctr">Coefficient</th><th class="ctr">Niveau moyen</th><th class="ctr">Critères positionnés</th><th class="num">Note indicative</th></tr></thead>
+    <tbody>${rows.map(r => `<tr class="pole-${r.e.unit}"><td class="el"><b class="pc">${r.e.code}</b> ${esc(REF[r.e.unit].label)}</td><td class="ctr">${r.e.coef || '—'}</td><td class="ctr">${bilChip(r.st.avg)}</td><td class="ctr">${r.st.pos} / ${r.st.n}</td><td class="num"><b>${note20(r.st.note)}</b></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">Moyenne pondérée par les coefficients${pond.length && pond.length < rows.length ? ' (épreuves déjà positionnées : ' + pond.map(r => r.e.code).join(', ') + ')' : ''}</td><td class="num"><b>${note20(tot)}</b></td></tr></tfoot></table></div>`;
+}
+
+// Ensemble des modules (2 pages) : tableau modules × compétences, puis une toile par module.
+function miniRadarSVG(items, sl){
+  const W0 = 210, H0 = 200, cx = 105, cy = 102, R = 66, n = items.length, step = 2 * Math.PI / n;
+  const at = (i, r) => [cx + Math.cos(-Math.PI / 2 + step * i) * r, cy + Math.sin(-Math.PI / 2 + step * i) * r];
+  const f = p => p[0].toFixed(1) + ',' + p[1].toFixed(1);
+  const ring = v => items.map((_, i) => f(at(i, R * v / 4)));
+  let g = `<path class="rd-zone" fill-rule="evenodd" d="M${ring(4).join('L')}Z M${ring(sl).join('L')}Z"/>`;
+  for (let l = 1; l <= 4; l++) g += `<polygon class="${l === sl ? 'rd-seuil' : 'rd-ring'}" points="${ring(l).join(' ')}"/>`;
+  items.forEach((_, i) => { const p = at(i, R); g += `<line class="rd-axis" x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`; });
+  if (items.some(it => it.avg != null)) g += `<polygon class="rd-class" points="${items.map((it, i) => f(at(i, R * (it.avg || 0) / 4))).join(' ')}"/>`;
+  if (items.some(it => it.v)){
+    g += `<polygon class="rd-student" points="${items.map((it, i) => f(at(i, R * (it.v || 0) / 4))).join(' ')}"/>`;
+    items.forEach((it, i) => { if (it.v){ const p = at(i, R * it.v / 4); g += `<circle class="mr-d" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3"/>`; } });
+  }
+  items.forEach((it, i) => { const p = at(i, R + 15), c = Math.cos(-Math.PI / 2 + step * i); g += `<text class="mr-l${it.pl ? ' pl' : ''}" x="${p[0].toFixed(1)}" y="${(p[1] + 4).toFixed(1)}" text-anchor="${c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle'}">${esc(it.code)}</text>`; });
+  return `<svg class="mini-radar" viewBox="0 0 ${W0} ${H0}" role="img" aria-label="${esc(items.map(it => it.code + ' ' + (it.lv || '—')).join(', '))}">${g}</svg>`;
+}
+function modulesCtx(E){
+  const mods = bilModules(), comps = comp11();
+  return mods.map(u => {
+    const evs = E.filter(ev => u.ids.includes(ev.module));
+    const per = comps.map(a => ({a, crits:ALL_COMPS.filter(c => actOf(c) === a.code), pl:plOf(u, a.code)}));
+    // Moyenne de la classe, compétence par compétence, dans ce module
+    const cls = {}; per.forEach(x => { cls[x.a.code] = avgOf(S.students.map(s => avgOf(x.crits.map(c => lastIn(evs, s.id, c.code)).filter(Boolean).map(l => lvNum(l.lv)))).filter(v => v != null)); });
+    return {u, evs, per, cls};
+  });
+}
+function sheetsModules(s, o, M, E){
+  if (!M.length) return [bilSheet(s, o, modTitle(), '<p class="bil-com">La progression n\'est pas encore chargée.</p>')];
+  const seuil = seuilLevel(), comps = comp11();
+  const rows = M.map(m => {
+    const cells = m.per.map(x => { const v = avgOf(x.crits.map(c => lastIn(m.evs, s.id, c.code)).filter(Boolean).map(l => lvNum(l.lv))); return {a:x.a, pl:x.pl, v, lv:lvOfAvg(v), avg:o.classe ? m.cls[x.a.code] : null}; });
+    const allCrits = ALL_COMPS, last = lastMap(m.evs, s.id, allCrits), st = bilStats(last, allCrits);
+    const nEv = m.evs.filter(ev => { const r = resFor(ev.id, s.id); return r && !r.absent; }).length;
+    return {m, cells, st, nEv};
+  });
+  const modEvs = E.filter(ev => M.some(m => m.u.ids.includes(ev.module))), critSet = new Set(ALL_COMPS.map(c => c.code));
+  const lastAll = lastMap(modEvs, s.id, ALL_COMPS), stAll = bilStats(lastAll, ALL_COMPS), notes = evNotes(modEvs, s.id, critSet);
+  const evalues = rows.filter(r => r.st.pos).length;
+  const head1 = `<tr><th rowspan="2">Module</th><th rowspan="2" class="ctr">Éval.</th>${UNITS.map(u => { const n = comps.filter(a => a.unit === u).length; return n ? `<th colspan="${n}" class="ctr pole-${u} mxp">${poleCode(u)} · ${esc(poleShort(u))}</th>` : ''; }).join('')}<th rowspan="2" class="ctr">Niveau</th></tr>`;
+  const head2 = `<tr>${comps.map(a => `<th class="ctr mxh pole-${a.unit}" title="${esc(a.name)}">${esc(a.code)}</th>`).join('')}</tr>`;
+  const body = rows.map(r => `<tr><td class="el"><b>${esc(r.m.u.code)}</b> ${esc(r.m.u.title)}<div class="mx-per">${esc([r.m.u.parts, r.m.u.per].filter(Boolean).join(' · '))}</div></td><td class="ctr">${r.nEv || '<span class="xs muted">—</span>'}</td>${r.cells.map(c => `<td class="ctr mx${c.pl ? ' pl-' + c.pl : ''}">${c.lv ? lvChip(c.lv, fmtNote(c.v) + ' sur 4') : (c.pl ? `<span class="mx-pl">${c.pl}</span>` : '')}</td>`).join('')}<td class="ctr">${bilChip(r.st.avg)}</td></tr>`).join('');
+  const page1 = `<section class="bil-part"><h3>${esc(modTitle())}</h3><p class="bil-psub">Pour chaque module : compétences prévues dans la progression (fond de case) et niveau obtenu dans les évaluations du module (pastille : moyenne des critères de la compétence, dernier positionnement dans le module).</p>
+    <div class="bil-stats">${statTile('Modules évalués', evalues + '<small> / ' + M.length + '</small>')}${statTile('Moyenne des notes', notes.length ? note20(avgOf(notes)) : '—')}${statTile('Niveau moyen', bilChip(stAll.avg))}${statTile(esc(W.acquired) + ' (' + seuil + ' ou plus)', stAll.pos ? stAll.acq + '<small> / ' + stAll.pos + ' positionné' + (stAll.pos > 1 ? 's' : '') + '</small>' : '—')}</div>
+    <table class="bil-table bil-mx"><colgroup><col style="width:30%"><col style="width:5%">${comps.map(() => '<col>').join('')}<col style="width:7%"></colgroup><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>
+    <div class="bil-legend mx-leg"><span>Prévu : <span class="mx-sw pl-A">A</span> abordée <span class="mx-sw pl-M">M</span> mobilisée <span class="mx-sw pl-FM">FM</span> fortement mobilisée</span><span>Pastille : niveau obtenu dans le module · « — » : pas d'évaluation</span></div></section>`;
+  const minis = rows.map(r => {
+    const items = r.cells.map(c => ({code:c.a.code, v:c.v || 0, lv:c.lv, pl:c.pl, avg:c.avg}));
+    return `<div class="mm${r.st.pos ? '' : ' mm-na'}"><div class="mm-h"><b>${esc(r.m.u.code)}</b><span class="el">${esc(r.m.u.title)}</span>${r.st.pos ? bilChip(r.st.avg) : '<span class="xs muted">non évalué</span>'}</div>${miniRadarSVG(items, lvNum(seuil))}</div>`;
+  }).join('');
+  const page2 = `<section class="bil-part"><h3>Toiles par module</h3><p class="bil-psub">Les 11 compétences dans chaque module : en gras, celles prévues dans la progression.</p>
+    <div class="bil-minis">${minis}</div>${bilLegend(s, o)}</section>`;
+  return [bilSheet(s, o, modTitle() + ' · 1/2', page1, {sign:false, note:false}), bilSheet(s, o, modTitle() + ' · 2/2', page2)];
+}
+
 function bilFormSync(){
   const f = $('#bilForm'); if (!f) return;
   const o = S.bil, show = (id, on) => { const el = $('#' + id, f); if (el) el.hidden = !on; };
@@ -875,7 +932,7 @@ function bilFormSync(){
   const studs = sortedStudents(), sSel = $('#bilSid', f), sig = studs.map(s => s.id + s.nom + s.prenom).join('|');
   if (sSel && sSel.dataset.sig !== sig && document.activeElement !== sSel){
     if (o.sid && !stById(o.sid)) o.sid = '';
-    sSel.innerHTML = `<option value="">Toute la classe · une page par étudiant (${studs.length})</option>` + studs.map(s => `<option value="${esc(s.id)}"${s.id === o.sid ? ' selected' : ''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('');
+    sSel.innerHTML = `<option value="">Toute la classe (${studs.length} étudiant${studs.length > 1 ? 's' : ''})</option>` + studs.map(s => `<option value="${esc(s.id)}"${s.id === o.sid ? ' selected' : ''}>${esc(s.nom)} ${esc(s.prenom)}</option>`).join('');
     sSel.dataset.sig = sig;
   }
   const mSel = $('#bilMod', f);
@@ -899,7 +956,7 @@ function bilFormSync(){
 function bilRead(){
   const f = $('#bilForm'); if (!f) return;
   const v = id => { const el = $('#' + id, f); return el ? el.value : ''; }, c = id => { const el = $('#' + id, f); return !!(el && el.checked); };
-  Object.assign(S.bil, {sid:v('bilSid'), from:v('bilFrom'), to:v('bilTo'), classe:c('bilClasse'), evals:c('bilEvals'), comments:c('bilComments'), sign:c('bilSign')});
+  Object.assign(S.bil, {sid:v('bilSid'), from:v('bilFrom'), to:v('bilTo'), classe:c('bilClasse'), sign:c('bilSign')});
   const sc = v('bilScope'); if (BIL_SCOPES.includes(sc)) S.bil.scope = sc;
   if (REF[Number(v('bilPole'))]) S.bil.pole = Number(v('bilPole'));
   const ep = v('bilEp'); if (ep === 'all' || EP_BILAN.some(e => e.code === ep)) S.bil.ep = ep;
@@ -907,20 +964,52 @@ function bilRead(){
   if (v('bilMod') && v('bilMod') !== S.bil.module){ S.bil.module = v('bilMod'); S.bilModAuto = false; }
   bilSave(); bilFormSync(); renderBilans();
 }
+// Chaque feuille doit tenir sur une page A4 (hauteur utile 277 mm, marge de sécurité) : réduction si besoin.
+function bilFit(){
+  const lim = 268 * 96 / 25.4, out = $('#bilOut');
+  if (out) out.style.setProperty('--bil-sz', '1');   // mesure à l'échelle réelle
+  document.querySelectorAll('#bilOut .bil-sheet').forEach(el => {
+    el.style.zoom = '';
+    const h = el.offsetHeight;
+    if (h > lim){ el.style.zoom = (Math.floor(lim / h * 1000) / 1000).toString(); el.dataset.fit = Math.round(100 * lim / h) + ' %'; }
+    else delete el.dataset.fit;
+  });
+  bilScreenScale();
+}
+// Aperçu à l'écran : feuilles réduites à la largeur disponible (sans effet sur l'impression).
+function bilScreenScale(){
+  const out = $('#bilOut'), pg = out && out.querySelector('.bil-page'); if (!pg) return;
+  out.style.setProperty('--bil-sz', '1');
+  const avail = out.clientWidth, w = pg.scrollWidth;
+  out.style.setProperty('--bil-sz', String(w > avail ? Math.max(0.4, Math.floor(avail / w * 100) / 100) : 1));
+}
+window.addEventListener('resize', () => { if (S.route.view === 'bilans') bilScreenScale(); });
 function renderBilans(){
   const out = $('#bilOut'); if (!out) return;
-  const o = S.bil, studs = sortedStudents(), btn = $('[data-act="bil-print"]');
+  const o = S.bil, studs = sortedStudents(), btn = $('[data-act="bil-print"]'), meta = $('#bilMeta');
   const list = o.sid && stById(o.sid) ? [stById(o.sid)] : studs;
-  const empty = (t, m) => { out.innerHTML = `<div class="card empty"><h2>${t}</h2><p>${m}</p></div>`; if (btn) btn.disabled = true; };
-  if (!studs.length){ const meta = $('#bilMeta'); if (meta) meta.textContent = bilScopeLabel(o); return empty('Aucun étudiant dans cette classe', 'Ajoutez les étudiants dans l\'onglet Étudiants.'); }
-  if (UNIFIED && o.scope === 'module' && !S.prog){
+  const empty = (t, m) => { out.innerHTML = `<div class="card empty"><h2>${t}</h2><p>${m}</p></div>`; if (btn) btn.disabled = true; if (meta) meta.textContent = bilScopeLabel(o); };
+  if (!studs.length) return empty('Aucun étudiant dans cette classe', 'Ajoutez les étudiants dans l\'onglet Étudiants.');
+  if (UNIFIED && (o.scope === 'module' || o.scope === 'modules') && !S.prog){
     if (!S.progErr) ensureAtelier().catch(() => {});
     return empty(S.progErr ? 'Progression indisponible' : 'Chargement de la progression…', S.progErr ? esc(S.progErr) : 'Les modules de formation s\'affichent dans un instant.');
   }
-  const parts = bilParts(o).map(bilPrepare), sep = parts.some(p => p.separate) && parts.length > 1;
-  const docs = sep ? list.flatMap(s => parts.map(p => [s, [p]])) : list.map(s => [s, parts]);
-  const meta = $('#bilMeta'); if (meta) meta.textContent = `${bilScopeLabel(o)} · ${docs.length} bilan${docs.length > 1 ? 's' : ''} à imprimer (${sep ? 'un par étudiant et par épreuve, chacun sur ses pages' : 'un par étudiant'})`;
-  out.innerHTML = docs.map(([s, ps]) => bilPage(s, ps, o)).join('');
+  const E = bilPeriod(o), sheets = [];
+  if (UNIFIED && o.scope === 'modules'){
+    const M = modulesCtx(E);
+    list.forEach(s => sheets.push(...sheetsModules(s, o, M, E)));
+  } else {
+    const parts = bilParts(o, E).map(bilPrepare);
+    list.forEach(s => parts.forEach((p, i) => {
+      let body = p.mode === 'acts' ? bodyActs(p, s, o) : bodyCrits(p, s, o);
+      if (o.scope === 'epreuves' && i === parts.length - 1) body += recapEpreuves(s, E);
+      sheets.push(bilSheet(s, o, p.doc, body, {note:UNIFIED && (p.note || p.key === 'g' || o.scope === 'epreuves')}));
+    }));
+  }
+  const per = sheets.length / list.length;
+  if (meta) meta.textContent = `${bilScopeLabel(o)} · ${sheets.length} page${sheets.length > 1 ? 's' : ''} A4 (${per > 1 ? per + ' par étudiant' : 'une par étudiant'})`;
+  out.innerHTML = sheets.join('');
+  bilFit();
   if (btn) btn.disabled = false;
 }
 VIEWS.bilans = {
@@ -928,21 +1017,21 @@ VIEWS.bilans = {
     if (S.route.id) S.bil.sid = S.route.id;
     const o = S.bil, ck = (id, on, t) => `<label><input type="checkbox" id="${id}"${on ? ' checked' : ''}> ${t}</label>`;
     const scopes = UNIFIED
-      ? [['global', 'Global · les 4 pôles'], ['epreuves', 'Par épreuve (' + EP_BILAN.map(e => e.code).join(', ') + ')'], ['pole', 'Un pôle'], ['module', 'Un module de formation']]
-      : [['bloc', 'Un bloc'], ['global', 'Les blocs ' + UNITS.join(' et ')]];
+      ? [['global', 'Global · les 4 pôles (1 page)'], ['epreuves', 'Par épreuve · ' + EP_BILAN.map(e => e.code).join(', ') + ' (1 page chacune)'], ['pole', 'Un pôle (1 page)'], ['module', 'Un module (1 page)'], ['modules', 'Ensemble des modules (2 pages)']]
+      : [['bloc', 'Un bloc (1 page)'], ['global', 'Les blocs ' + UNITS.join(' et ') + ' (1 page chacun)']];
     return `<div class="bil-tools"><div class="vhead"><div class="grow"><h1>Bilans de compétences</h1><div class="meta" id="bilMeta"></div></div>
         <div class="actions"><button class="btn btn-primary" type="button" data-act="bil-print">Imprimer ou enregistrer en PDF</button></div></div>
       <div class="card pad bil-form" id="bilForm">
         <label class="fld"><span>Étudiant</span><select id="bilSid"></select></label>
         <label class="fld"><span>Bilan</span><select id="bilScope">${scopes.map(([k, t]) => `<option value="${k}"${k === o.scope ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         ${UNIFIED ? `<label class="fld" id="bilPoleWrap"><span>Pôle</span><select id="bilPole">${UNITS.map(u => `<option value="${u}"${u === o.pole ? ' selected' : ''}>${esc(REF[u].label)}${epOf(u) ? ' · ' + epOf(u).code : ''}</option>`).join('')}</select></label>
-          <label class="fld" id="bilEpWrap"><span>Épreuve</span><select id="bilEp"><option value="all"${o.ep === 'all' ? ' selected' : ''}>${esc(listFr(EP_BILAN.map(e => e.code)))} : un bilan par épreuve</option>${EP_BILAN.map(e => `<option value="${e.code}"${e.code === o.ep ? ' selected' : ''}>${e.code} · ${esc(REF[e.unit].label)}</option>`).join('')}</select></label>
+          <label class="fld" id="bilEpWrap"><span>Épreuve</span><select id="bilEp"><option value="all"${o.ep === 'all' ? ' selected' : ''}>${esc(listFr(EP_BILAN.map(e => e.code)))} : une page par épreuve</option>${EP_BILAN.map(e => `<option value="${e.code}"${e.code === o.ep ? ' selected' : ''}>${e.code} · ${esc(REF[e.unit].label)}</option>`).join('')}</select></label>
           <label class="fld" id="bilModWrap"><span>Module de formation</span><select id="bilMod"></select></label>`
           : `<label class="fld" id="bilBlocWrap"><span>${esc(UNIT)}</span><select id="bilBloc">${UNITS.map(u => `<option value="${u}"${u === o.bloc ? ' selected' : ''}>${esc(REF[u].label)}</option>`).join('')}</select></label>`}
         <label class="fld"><span>Évaluations du</span><input type="date" id="bilFrom" value="${esc(o.from)}"></label>
         <label class="fld"><span>au</span><input type="date" id="bilTo" value="${esc(o.to)}"></label>
-        <div class="bil-opts">${ck('bilClasse', o.classe, 'Moyenne de la classe sur la toile')}${ck('bilEvals', o.evals, 'Liste des évaluations')}${ck('bilComments', o.comments, 'Commentaires et remarques orales saisis')}${ck('bilSign', o.sign, 'Cadre d\'appréciation et signatures')}</div>
-        <p class="hint bil-hint">Le bilan reflète les positionnements enregistrés au moment où vous l'éditez. Dates vides : toutes les évaluations. Pour un PDF, choisissez « Enregistrer au format PDF » comme imprimante.</p>
+        <div class="bil-opts">${ck('bilClasse', o.classe, 'Moyenne de la classe sur la toile')}${ck('bilSign', o.sign, 'Cadre d\'appréciation et signatures')}</div>
+        <p class="hint bil-hint">Le bilan reflète les positionnements enregistrés au moment où vous l'éditez. Dates vides : toutes les évaluations. Chaque feuille tient sur une page A4. Pour un PDF, choisissez « Enregistrer au format PDF » comme imprimante.</p>
       </div></div>
       <div id="bilOut"></div>`;
   },

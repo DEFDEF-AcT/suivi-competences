@@ -170,7 +170,7 @@ body.atelier-mode .atelier-msg{margin:22px max(16px,3vw)}
 .md-head b{display:block; font:700 clamp(22px,2.6vw,30px)/1.05 'Barlow Condensed',Arial,sans-serif}
 .md-head small{font-size:14.5px; font-weight:500}
 
-/* ---------- Bilans de compétences (écran : aperçu ; impression : une page A4 par étudiant) ---------- */
+/* ---------- Bilans de compétences : feuilles A4 (écran : aperçu à l'échelle ; impression : une feuille par page) ---------- */
 .bil-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px 16px; align-items:end; margin-bottom:18px}
 .bil-form .fld select, .bil-form .fld input{width:100%}
 .bil-form [hidden]{display:none !important}
@@ -178,53 +178,83 @@ body.atelier-mode .atelier-msg{margin:22px max(16px,3vw)}
 .bil-opts label{display:inline-flex; gap:6px; align-items:center; cursor:pointer}
 .bil-hint{grid-column:1/-1; margin:0}
 #bilOut{display:grid; gap:24px; justify-items:center; padding-bottom:30px}
-.bil-page{background:#fff; color:#152232; width:100%; max-width:210mm; padding:13mm 12mm; box-shadow:0 2px 14px rgba(20,35,60,.16); border-radius:4px; font-size:10pt; line-height:1.35; font-family:var(--font)}
+.bil-page{background:#fff; padding:6mm; box-shadow:0 2px 14px rgba(20,35,60,.16); border-radius:4px; max-width:100%; overflow-x:auto}
+.bil-sheet{width:188mm; color:#152232; font-size:8.5pt; line-height:1.3; font-family:var(--font)}
 .bil-page, .bil-page *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
-.bil-head{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; border-bottom:3px solid var(--navy); padding-bottom:7px}
-.bil-etab{font-weight:700; color:var(--navy); font-size:10.5pt}
-.bil-sub{color:var(--ink-2); font-size:9pt}
-.bil-doc{text-align:right; font-size:8.5pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.04em}
-.bil-doc b{display:block; font-size:11.5pt; color:var(--navy); text-transform:none; letter-spacing:0}
-.bil-who{margin:9px 0 4px}
-.bil-who h2{margin:0; font-size:17pt; color:var(--navy); line-height:1.15}
-.bil-meta{font-size:8.5pt; color:var(--ink-2)}
-.bil-part{margin-top:8px}
-.bil-part > h3{font-size:12pt; margin:10px 0 2px; color:var(--navy); border-left:4px solid var(--pole, var(--amber)); padding-left:8px}
-.bil-psub{font-size:8.5pt; color:var(--ink-2); margin:0 0 6px}
-.bil-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(30mm,1fr)); gap:6px; margin:6px 0 4px}
-.bil-stat{border:1px solid var(--line); border-radius:6px; padding:5px 8px; break-inside:avoid}
-.bil-stat > span{display:block; font-size:7pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.03em}
-.bil-stat b{font-size:13pt; color:var(--ink)}
-.bil-stat small{font-size:8.5pt; font-weight:400; color:var(--ink-2)}
-.bil-radar{text-align:center; break-inside:avoid}
-.bil-radar svg{width:100%; max-width:138mm; height:auto}
-.bil-legend{display:flex; flex-wrap:wrap; gap:3px 14px; justify-content:center; font-size:8pt; color:var(--ink-2); margin-top:-4px}
-.bil-table{width:100%; border-collapse:collapse; font-size:8pt; margin:6px 0}
-.bil-table th{background:#EEF2F7; text-align:left; padding:4px 6px; font-size:7.5pt; color:var(--navy); text-transform:uppercase; letter-spacing:.03em}
-.bil-table td{padding:3px 6px; border-bottom:1px solid #E3E8EF; vertical-align:top}
+.bil-sheet .lv{min-width:28px; padding:1px 4px; font-size:6.8pt; border-radius:4px; line-height:1.45}
+.bil-sheet .xs{font-size:6.5pt}
+.bil-head{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; border-bottom:2.5px solid var(--navy); padding-bottom:4px}
+.bil-etab{font-weight:700; color:var(--navy); font-size:9.5pt}
+.bil-sub{color:var(--ink-2); font-size:7.8pt}
+.bil-doc{text-align:right; font-size:7pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.04em}
+.bil-doc b{display:block; font-size:10pt; color:var(--navy); text-transform:none; letter-spacing:0}
+.bil-who{display:flex; align-items:baseline; gap:4px 12px; flex-wrap:wrap; margin:5px 0 2px}
+.bil-who h2{margin:0; font-size:14pt; color:var(--navy); line-height:1.15}
+.bil-meta{font-size:7.3pt; color:var(--ink-2)}
+.bil-part > h3{font-size:10.5pt; margin:5px 0 1px; color:var(--navy); border-left:4px solid var(--pole, var(--amber)); padding-left:7px}
+.bil-psub{font-size:7.3pt; color:var(--ink-2); margin:0 0 3px}
+.bil-stats{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:5px; margin:3px 0}
+.bil-stat{border:1px solid var(--line); border-radius:5px; padding:2px 7px}
+.bil-stat > span{display:block; font-size:6.3pt; color:var(--ink-2); text-transform:uppercase; letter-spacing:.03em}
+.bil-stat b{font-size:11pt; color:var(--ink)}
+.bil-stat small{font-size:7.3pt; font-weight:400; color:var(--ink-2)}
+.bil-top{display:grid; grid-template-columns:116mm 1fr; gap:6px; align-items:center}
+.bil-radar{text-align:center; min-width:0}
+.bil-radar svg{width:100%; height:auto; display:block}
+.bil-legend{display:flex; flex-wrap:wrap; gap:1px 10px; justify-content:center; font-size:6.6pt; color:var(--ink-2)}
+.bil-legend .sw{width:11px; height:8px; margin-right:4px}
+.bil-side{display:grid; gap:4px; align-content:center}
+.bil-tile{border:1px solid var(--line); border-left:4px solid var(--pole, var(--navy)); border-radius:5px; padding:2px 6px; font-size:7.3pt}
+.bil-tile > div:first-child b{color:var(--pole, var(--navy))}
+.bt-r{display:flex; align-items:center; gap:6px; margin-top:1px; font-size:6.8pt; color:var(--ink-2)}
+.bt-r b{margin-left:auto; color:var(--ink); font-size:8.5pt; white-space:nowrap}
+.bt-plan{display:flex; flex-wrap:wrap; gap:3px 8px; margin-top:3px}
+.bil-table{width:100%; border-collapse:collapse; font-size:7.4pt; margin:3px 0; table-layout:fixed}
+.bil-table th{background:#EEF2F7; text-align:left; padding:2px 5px; font-size:6.3pt; color:var(--navy); text-transform:uppercase; letter-spacing:.03em; font-weight:700}
+.bil-table td{padding:1px 5px; border-bottom:1px solid #E6EAF0; vertical-align:middle}
 .bil-table tr{break-inside:avoid}
+.bil-table td.el{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .bil-table .ctr{text-align:center} .bil-table .num{text-align:right; white-space:nowrap}
-.bil-table tr.bil-grp td{background:var(--pole-bg, #F3F6FA); color:var(--pole, var(--navy)); font-weight:700; border-bottom:1px solid var(--line)}
-.bil-table tfoot td{font-weight:700; border-top:2px solid var(--line); border-bottom:0}
-.bil-sum tr[class*="pole-"] td:first-child{border-left:4px solid var(--pole)}
+.bil-table tr.bil-grp td{background:var(--pole-bg, #F3F6FA); color:var(--pole, var(--navy)); font-weight:700}
+.bil-table tfoot td{font-weight:700; border-top:2px solid var(--line); border-bottom:0; padding-top:2px}
 .bil-sum .pc{color:var(--pole)}
-.bil-table .lv{min-width:34px; padding:1px 4px; font-size:7.5pt}
-.bil-h{display:inline-flex; flex-direction:column; align-items:center; margin:0 3px 2px 0; vertical-align:top}
-.bil-h small{font-size:6.5pt; color:var(--ink-3)}
-.bil-lvs{display:flex; flex-wrap:wrap; gap:2px 7px}
-.bil-lvs span{display:inline-flex; gap:3px; align-items:center; font-size:7pt; color:var(--ink-2)}
-.bil-com{font-size:8pt; color:var(--ink-2); margin:1px 0 0}
-.bil-note{font-size:7.5pt; color:var(--ink-3); margin:0 0 4px}
-.bil-h4{font-size:9.5pt; color:var(--navy); margin:10px 0 2px}
-.bil-sign{display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-top:12px; break-inside:avoid}
-.bil-sign div{border:1px solid var(--line); border-radius:6px; min-height:27mm; padding:5px 8px; font-size:8.5pt; color:var(--ink-2)}
-.bil-foot{margin-top:10px; font-size:7.5pt; color:var(--ink-3); border-top:1px solid var(--line); padding-top:5px}
-.bil-bars{display:grid; gap:6px; max-width:150mm; margin:6px auto; text-align:left}
-.bb-row{display:grid; grid-template-columns:1fr 46mm auto; gap:8px; align-items:center; font-size:8.5pt}
-.bb-track{position:relative; height:10px; background:var(--surface-2); border-radius:5px}
+.bil-sum tr[class*="pole-"] td:first-child{border-left:4px solid var(--pole)}
+.bh{display:inline-flex; align-items:center; gap:2px; margin-right:5px}
+.bh i{font-style:normal; font-size:6pt; color:var(--ink-3)}
+.bh-more{color:var(--ink-3); margin-right:3px}
+.bil-recap h4{font-size:9pt; color:var(--navy); margin:6px 0 1px}
+.bil-com{font-size:7.5pt; color:var(--ink-2); margin:2px 0}
+.bil-sign{display:grid; grid-template-columns:2fr 1fr 1fr; gap:6px; margin-top:6px}
+.bil-sign div{border:1px solid var(--line); border-radius:5px; min-height:19mm; padding:3px 7px; font-size:7.3pt; color:var(--ink-2)}
+.bil-foot{margin-top:5px; font-size:6.2pt; color:var(--ink-3); border-top:1px solid var(--line); padding-top:3px; line-height:1.35}
+/* Ensemble des modules */
+.bil-mx th{padding:2px 2px}
+.bil-mx th.mxp{text-align:center; color:var(--pole); background:var(--pole-bg)}
+.bil-mx th.mxh{text-align:center; font-size:6.2pt; color:var(--pole)}
+.bil-mx td{padding:1px 3px; height:9.2mm}
+.bil-mx td.mx{border-left:2px solid #fff; padding:1px}
+.mx.pl-A, .mx-sw.pl-A{background:#DAE9F7} .mx.pl-M, .mx-sw.pl-M{background:#EFCFFF} .mx.pl-FM, .mx-sw.pl-FM{background:#D9F2D0}
+.mx-pl{font-size:6.5pt; color:var(--ink-3); font-weight:700}
+.mx-per{font-size:6.2pt; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mx-sw{display:inline-block; padding:0 4px; border-radius:3px; font-weight:700; font-size:6.5pt; color:var(--ink)}
+.mx-leg{justify-content:flex-start; gap:2px 16px; margin-top:2px}
+.bil-minis{display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; margin:4px 0}
+.mm{border:1px solid var(--line); border-radius:5px; padding:3px 4px 0; min-width:0}
+.mm-h{display:flex; align-items:center; gap:4px; font-size:7pt}
+.mm-h b{color:var(--navy)}
+.mm-h .el{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2)}
+.mm-na .mini-radar{opacity:.45}
+.mini-radar{width:100%; height:auto; display:block}
+.mr-l{font-size:10.5px; fill:var(--ink-3); font-family:var(--font)}
+.mr-l.pl{fill:var(--navy); font-weight:700}
+.mr-d{fill:var(--c-student); stroke:#FFFFFF; stroke-width:1}
+.bil-bars{display:grid; gap:6px; max-width:110mm; margin:6px auto; text-align:left}
+.bb-row{display:grid; grid-template-columns:1fr 40mm auto; gap:8px; align-items:center; font-size:7.5pt}
+.bb-track{position:relative; height:9px; background:var(--surface-2); border-radius:5px}
 .bb-track i{position:absolute; inset:0 auto 0 0; background:var(--c-student); border-radius:5px}
-.bb-track em{position:absolute; top:-3px; width:3px; height:16px; background:var(--c-class); margin-left:-1px}
-@media screen and (max-width:720px){ .bil-page{padding:6mm 4mm} .bil-sign{grid-template-columns:1fr} .bil-head{flex-direction:column; align-items:flex-start} .bil-doc{text-align:left} }
+.bb-track em{position:absolute; top:-3px; width:3px; height:15px; background:var(--c-class); margin-left:-1px}
+@media screen{ .bil-page{zoom:var(--bil-sz, 1)} }
+@media screen and (max-width:720px){ .bil-page{padding:4mm} }
 @media print{
   @page{size:A4 portrait; margin:10mm}
   body.bilan-mode{background:#fff}
@@ -232,6 +262,6 @@ body.atelier-mode .atelier-msg{margin:22px max(16px,3vw)}
   body.bilan-mode #main{max-width:none; padding:0; margin:0}
   body.bilan-mode .bil-tools{display:none !important}
   body.bilan-mode #bilOut{display:block; padding:0}
-  .bil-page{box-shadow:none; border-radius:0; padding:0; max-width:none; width:auto; break-after:page}
+  .bil-page{box-shadow:none; border-radius:0; padding:0; max-width:none; overflow:visible; break-after:page; break-inside:avoid}
   .bil-page:last-child{break-after:auto}
 }
