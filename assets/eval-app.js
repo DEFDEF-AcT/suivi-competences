@@ -703,14 +703,15 @@ const EPREUVES = UNIFIED ? UNITS.map(u => {
 }).filter(Boolean) : [];
 const epOf = u => EPREUVES.find(e => e.unit === u) || null;
 const EP_BILAN = EPREUVES.filter(e => (CFG.bilanEpreuves || []).includes(e.code));
-EPREUVES.forEach(e => { ACT[e.code] = {code:e.code, band:poleShort(e.unit), name:'Épreuve ' + e.code + ' · ' + REF[e.unit].label, unit:e.unit, pole:e.unit}; });
+const epTitle = e => 'Épreuve ' + e.code + ' · ' + REF[e.unit].label;
 const listFr = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' et ' + a[a.length - 1];
 const BIL_SCOPES = UNIFIED ? ['global', 'epreuves', 'pole', 'module'] : ['bloc', 'global'];
-const BIL_KEEP = ['scope', 'pole', 'bloc', 'module', 'classe', 'evals', 'comments', 'sign'];
-S.bil = Object.assign({sid:'', scope:BIL_SCOPES[0], pole:DEFAULT_UNIT, bloc:S.bloc, module:'', from:'', to:'', classe:true, evals:true, comments:false, sign:true},
+const BIL_KEEP = ['scope', 'pole', 'ep', 'bloc', 'module', 'classe', 'evals', 'comments', 'sign'];
+S.bil = Object.assign({sid:'', scope:BIL_SCOPES[0], pole:DEFAULT_UNIT, ep:'all', bloc:S.bloc, module:'', from:'', to:'', classe:true, evals:true, comments:false, sign:true},
   (() => { try { const o = JSON.parse(LS.get(LSK('bilan')) || '{}'); return Object.fromEntries(BIL_KEEP.filter(k => k in o).map(k => [k, o[k]])); } catch(e){ return {}; } })());
 if (!BIL_SCOPES.includes(S.bil.scope)) S.bil.scope = BIL_SCOPES[0];
 if (!REF[S.bil.pole]) S.bil.pole = DEFAULT_UNIT;
+if (S.bil.ep !== 'all' && !EP_BILAN.some(e => e.code === S.bil.ep)) S.bil.ep = 'all';
 if (!REF[S.bil.bloc]) S.bil.bloc = DEFAULT_UNIT;
 // Le module n'est retenu d'une fois sur l'autre que s'il a été choisi à la main.
 const bilSave = () => LS.set(LSK('bilan'), JSON.stringify(Object.fromEntries(BIL_KEEP.filter(k => k !== 'module' || !S.bilModAuto).map(k => [k, S.bil[k]]))));
@@ -719,7 +720,7 @@ const epLabel = e => e ? 'épreuve ' + e.code + (e.uc ? ' (' + e.uc + ')' : '') 
 function bilScopeLabel(o){
   if (!UNIFIED) return o.scope === 'global' ? UNITS.map(u => UNIT + ' ' + u).join(' et ') : REF[o.bloc].label;
   if (o.scope === 'global') return 'Bilan global · ' + CFG.scopeLabel;
-  if (o.scope === 'epreuves') return 'Épreuves ' + listFr(EP_BILAN.map(e => e.code));
+  if (o.scope === 'epreuves'){ const e = EP_BILAN.find(x => x.code === o.ep); return e ? epTitle(e) : 'Épreuves ' + listFr(EP_BILAN.map(x => x.code)) + ', une par une'; }
   if (o.scope === 'pole'){ const e = epOf(o.pole); return REF[o.pole].label + (e ? ' · épreuve ' + e.code : ''); }
   const u = progUnit(o.module); return u ? 'Module ' + u.code + ' · ' + u.title : 'Module de formation';
 }
@@ -743,10 +744,16 @@ function bilParts(o){
     return [{key:'m', title:u ? u.code + ' · ' + u.title : 'Module', sub:[u ? perLabel(u) : '', plan.length ? 'Prévu dans la progression : ' + plan.join(', ') : ''].filter(Boolean).join(' · '),
       module:o.module, evs, crits, acts, units:UNITS.filter(x => acts.some(a => a.unit === x)), mode:acts.length >= 3 ? 'acts' : 'crits', group:'pole'}];
   }
-  const units = o.scope === 'epreuves' ? EP_BILAN.map(e => e.unit) : UNITS;
-  return [{key:o.scope, title:o.scope === 'epreuves' ? 'Épreuves ' + listFr(EP_BILAN.map(e => e.code)) : 'Les ' + units.length + ' pôles et leurs compétences',
-    sub:o.scope === 'epreuves' ? EP_BILAN.map(e => e.code + ' : ' + REF[e.unit].label).join(' · ') : 'Chaque compétence : niveau moyen de ses critères, au dernier positionnement.',
-    evs:E, crits:ALL_COMPS.filter(c => units.includes(c.unit)), acts:ALL_ACTS.filter(a => units.includes(a.unit)), units, mode:'acts', group:o.scope === 'epreuves' ? 'epreuve' : 'pole'}];
+  if (o.scope === 'epreuves'){
+    // Une épreuve = un bilan à part (en-tête, toile, note indicative, évaluations, signatures, pages à elle).
+    return EP_BILAN.filter(e => o.ep === 'all' || e.code === o.ep).map(e => {
+      const m = String(REF[e.unit].modal || '').replace(/^\s*E\d+,\s*/, '').replace(/\s*·\s*coefficient \d+\.?\s*$/, '');
+      return {key:'e' + e.code, doc:epTitle(e), title:epTitle(e), pole:e.unit, evs:E, crits:REF[e.unit].comps, acts:REF[e.unit].acts, units:[e.unit], mode:'crits', note:true, separate:true,
+        sub:[e.uc ? 'Unité ' + e.uc : '', e.coef ? 'coefficient ' + e.coef : '', m ? m.charAt(0).toUpperCase() + m.slice(1) : ''].filter(Boolean).join(' · ') + '. Tous les critères du pôle ' + e.unit + ', quel que soit le pôle dominant de l\'évaluation.'};
+    });
+  }
+  return [{key:o.scope, title:'Les ' + UNITS.length + ' pôles et leurs compétences', sub:'Chaque compétence : niveau moyen de ses critères, au dernier positionnement.',
+    evs:E, crits:ALL_COMPS, acts:ALL_ACTS, units:UNITS, mode:'acts', group:'pole'}];
 }
 function lastIn(evs, sid, code){
   for (let i = evs.length - 1; i >= 0; i--){
@@ -776,7 +783,7 @@ function bilStats(last, crits){
   return {n:crits.length, pos:pos.length, avg:avgOf(vals), acq:vals.filter(v => v >= si).length, note:pos.length ? avgOf(pos.map(c => P[last[c.code].lv]).filter(x => x != null)) : null};
 }
 const bilChip = v => v == null ? '<span class="lv lv-none">—</span>' : lvChip(lvOfAvg(v), fmtNote(v) + ' sur 4');
-const bilGroupLabel = (p, u) => p.group === 'epreuve' && epOf(u) ? `Épreuve ${epOf(u).code} · ${REF[u].label}` : REF[u].label + (epOf(u) ? ' · ' + epLabel(epOf(u)) : '');
+const bilGroupLabel = u => REF[u].label + (epOf(u) ? ' · ' + epLabel(epOf(u)) : '');
 function bilBars(items){
   return `<div class="bil-bars">${items.map(it => `<div class="bb-row"><span class="bb-l"><b>${esc(it.code)}</b> ${esc(it.short)}</span><span class="bb-track"><i style="width:${((it.v || 0) * 25).toFixed(1)}%"></i>${it.avg != null ? `<em style="left:${(it.avg * 25).toFixed(1)}%" title="Moyenne de la classe"></em>` : ''}</span>${it.lv ? lvChip(it.lv) : '<span class="lv lv-none">—</span>'}</div>`).join('')}</div>`;
 }
@@ -789,12 +796,12 @@ function bilPartHtml(p, s, o){
   // Toile
   let items, actAvg = {};
   if (p.mode === 'acts'){
-    const grp = a => p.group === 'epreuve' && epOf(a.unit) ? epOf(a.unit).code : poleCode(a.unit);
+    const grp = a => poleCode(a.unit);
     items = p.acts.map(a => {
       const cs = actsOf(a.code), mine = cs.map(c => last[c.code]).filter(Boolean).map(l => lvNum(l.lv)), v = avgOf(mine);
       return {code:a.code, short:a.band, act:grp(a), na:!cs.some(c => p.used.has(c.code)), v:v || 0, lv:lvOfAvg(v), title:v ? 'moyenne de ' + mine.length + ' critère' + (mine.length > 1 ? 's' : '') : '', avg:o.classe ? avgOf(cs.map(c => p.classCrit[c.code]).filter(x => x != null)) : null};
     });
-    p.units.forEach(u => { const key = p.group === 'epreuve' && epOf(u) ? epOf(u).code : poleCode(u); actAvg[key] = bilStats(last, p.crits.filter(c => c.unit === u)).avg; });
+    p.units.forEach(u => { actAvg[poleCode(u)] = bilStats(last, p.crits.filter(c => c.unit === u)).avg; });
   } else {
     items = p.crits.map(c => { const l = last[c.code]; return {code:c.code, short:c.short, act:actOf(c), na:!p.used.has(c.code), v:l ? lvNum(l.lv) : 0, lv:l && l.lv, title:l && l.ev.title, avg:o.classe ? p.classCrit[c.code] : null}; });
     p.acts.forEach(a => { actAvg[a.code] = bilStats(last, actsOf(a.code)).avg; });
@@ -810,13 +817,10 @@ function bilPartHtml(p, s, o){
     ${p.note ? `<div class="bil-stat"><span>Note indicative (barème)</span><b>${st.note == null ? '—' : fmtNote(st.note) + '<small> / 20</small>'}</b></div>` : ''}</div>`;
   // Synthèse par pôle ou par épreuve (BTS)
   let sum = '';
-  if (UNIFIED && p.mode === 'acts' && p.group && p.key !== 'm'){
+  if (UNIFIED && p.mode === 'acts' && p.key !== 'm'){
     const rows = p.units.map(u => ({u, e:epOf(u), st:bilStats(last, p.crits.filter(c => c.unit === u))}));
-    const pond = rows.filter(r => r.e && r.e.coef && r.st.note != null);
-    const tot = pond.length ? pond.reduce((n, r) => n + r.e.coef * r.st.note, 0) / pond.reduce((n, r) => n + r.e.coef, 0) : null;
-    sum = `<table class="bil-table bil-sum"><thead><tr><th>${p.group === 'epreuve' ? 'Épreuve' : 'Pôle'}</th><th class="ctr">Niveau moyen</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th><th class="num">Note indicative</th></tr></thead>
-      <tbody>${rows.map(r => `<tr class="pole-${r.u}"><td><b class="pc">${p.group === 'epreuve' && r.e ? r.e.code + (r.e.coef ? ' <small>coef. ' + r.e.coef + '</small>' : '') : poleCode(r.u)}</b> ${esc(p.group === 'epreuve' ? REF[r.u].label : REF[r.u].label + (r.e ? ' (' + r.e.code + ')' : ''))}</td><td class="ctr">${bilChip(r.st.avg)}</td><td class="ctr">${r.st.pos} / ${r.st.n}</td><td class="ctr">${r.st.pos ? r.st.acq : '—'}</td><td class="num"><b>${r.st.note == null ? '—' : fmtNote(r.st.note) + ' / 20'}</b></td></tr>`).join('')}</tbody>
-      ${p.group === 'epreuve' && rows.length > 1 ? `<tfoot><tr><td colspan="4">Moyenne indicative pondérée par les coefficients${pond.length < rows.length ? ' (épreuves déjà positionnées)' : ''}</td><td class="num"><b>${tot == null ? '—' : fmtNote(tot) + ' / 20'}</b></td></tr></tfoot>` : ''}</table>`;
+    sum = `<table class="bil-table bil-sum"><thead><tr><th>Pôle</th><th class="ctr">Niveau moyen</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th><th class="num">Note indicative</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="pole-${r.u}"><td><b class="pc">${poleCode(r.u)}</b> ${esc(REF[r.u].label + (r.e ? ' (' + r.e.code + ')' : ''))}</td><td class="ctr">${bilChip(r.st.avg)}</td><td class="ctr">${r.st.pos} / ${r.st.n}</td><td class="ctr">${r.st.pos ? r.st.acq : '—'}</td><td class="num"><b>${r.st.note == null ? '—' : fmtNote(r.st.note) + ' / 20'}</b></td></tr>`).join('')}</tbody></table>`;
   }
   // Détail
   let det;
@@ -824,7 +828,7 @@ function bilPartHtml(p, s, o){
     const isMod = p.key === 'm';
     det = `<table class="bil-table"><thead><tr><th>Compétence</th>${isMod ? '<th class="ctr">Prévu</th>' : ''}<th class="ctr">Niveau</th><th class="ctr">Critères positionnés</th><th class="ctr">Acquis</th></tr></thead><tbody>${p.units.map(u => {
       const acts = p.acts.filter(a => a.unit === u); if (!acts.length) return '';
-      return `<tr class="bil-grp pole-${u}"><td colspan="${isMod ? 5 : 4}">${esc(bilGroupLabel(p, u))}</td></tr>` + acts.map(a => { const x = bilStats(last, actsOf(a.code)); return `<tr><td><b>${esc(a.code)}</b> ${esc(a.name)}</td>${isMod ? `<td class="ctr">${stChip(planned(p.module, a.code))}</td>` : ''}<td class="ctr">${bilChip(x.avg)}</td><td class="ctr">${x.pos} / ${x.n}</td><td class="ctr">${x.pos ? x.acq : '—'}</td></tr>`; }).join('');
+      return `<tr class="bil-grp pole-${u}"><td colspan="${isMod ? 5 : 4}">${esc(bilGroupLabel(u))}</td></tr>` + acts.map(a => { const x = bilStats(last, actsOf(a.code)); return `<tr><td><b>${esc(a.code)}</b> ${esc(a.name)}</td>${isMod ? `<td class="ctr">${stChip(planned(p.module, a.code))}</td>` : ''}<td class="ctr">${bilChip(x.avg)}</td><td class="ctr">${x.pos} / ${x.n}</td><td class="ctr">${x.pos ? x.acq : '—'}</td></tr>`; }).join('');
     }).join('')}</tbody></table>`;
   } else {
     det = `<table class="bil-table"><thead><tr><th>${esc(W.comp.charAt(0).toUpperCase() + W.comp.slice(1))}</th><th>Positionnements sur la période</th><th class="ctr">Niveau</th></tr></thead><tbody>${p.acts.map(a => {
@@ -846,7 +850,7 @@ function bilPartHtml(p, s, o){
         <td>${r && r.absent ? '<span class="chip">Absent</span>' : `<div class="bil-lvs">${lvs || '<span class="xs muted">—</span>'}</div>`}</td><td class="num"><b>${r && r.absent ? 'ABS' : fmtNote(finalNote(ev, r))}</b></td></tr>`;
     }).join('')}</tbody></table>` : `<p class="bil-com">Aucune évaluation de ce périmètre sur la période.</p>`);
   }
-  const poleCls = p.pole ? ' pole-' + p.pole : p.key === 'epreuves' ? ' pole-1' : '';
+  const poleCls = p.pole ? ' pole-' + p.pole : '';
   return `<section class="bil-part${poleCls}"><h3>${esc(p.title)}</h3>${p.sub ? `<p class="bil-psub">${esc(p.sub)}</p>` : ''}
     ${stats}<div class="bil-radar">${p.crits.some(c => p.used.has(c.code)) ? chart + legend : '<p class="bil-com">Aucun positionnement sur ce périmètre pour la période choisie.</p>'}</div>
     ${sum}${sum ? `<p class="bil-note">Note indicative : moyenne des points du dernier positionnement de chaque critère (barème de la classe : ${LEVELS.map(k => k + ' ' + fmtNote(points()[k])).join(' · ')}). Elle ne remplace pas la grille officielle de l'épreuve.</p>` : ''}
@@ -857,7 +861,7 @@ function bilPage(s, parts, o){
   const per = o.from || o.to ? 'Période : ' + (o.from ? 'du ' + fmtDate(o.from) : 'depuis le début') + ' ' + (o.to ? 'au ' + fmtDate(o.to) : "jusqu'à ce jour") : 'Toutes les évaluations de la classe';
   return `<article class="bil-page">
     <header class="bil-head"><div><div class="bil-etab">${esc((window.APP_CONFIG && window.APP_CONFIG.etablissement) || '')}</div><div class="bil-sub">${esc(CFG.formation || String(CFG.name).replace(/^Évaluations\s+/, ''))}${cls ? ' · ' + esc(cls.name) : ''}</div></div>
-      <div class="bil-doc">Bilan de compétences<b>${esc(bilScopeLabel(o))}</b></div></header>
+      <div class="bil-doc">Bilan de compétences<b>${esc(parts.length === 1 && parts[0].doc ? parts[0].doc : bilScopeLabel(o))}</b></div></header>
     <div class="bil-who"><h2>${esc(s.nom)} ${esc(s.prenom)}</h2><div class="bil-meta">${esc(per)} · édité le ${esc(fmtDate(today()))} · seuil d'acquisition : ${seuilLevel()}</div></div>
     ${parts.map(p => bilPartHtml(p, s, o)).join('')}
     ${o.sign ? `<div class="bil-sign"><div>Appréciation du formateur</div><div>Le formateur<br><span class="xs">date et signature</span></div><div>L'étudiant(e)<br><span class="xs">date et signature</span></div></div>` : ''}
@@ -867,7 +871,7 @@ function bilPage(s, parts, o){
 function bilFormSync(){
   const f = $('#bilForm'); if (!f) return;
   const o = S.bil, show = (id, on) => { const el = $('#' + id, f); if (el) el.hidden = !on; };
-  show('bilPoleWrap', UNIFIED && o.scope === 'pole'); show('bilModWrap', UNIFIED && o.scope === 'module'); show('bilBlocWrap', !UNIFIED && o.scope === 'bloc');
+  show('bilPoleWrap', UNIFIED && o.scope === 'pole'); show('bilEpWrap', UNIFIED && o.scope === 'epreuves'); show('bilModWrap', UNIFIED && o.scope === 'module'); show('bilBlocWrap', !UNIFIED && o.scope === 'bloc');
   const studs = sortedStudents(), sSel = $('#bilSid', f), sig = studs.map(s => s.id + s.nom + s.prenom).join('|');
   if (sSel && sSel.dataset.sig !== sig && document.activeElement !== sSel){
     if (o.sid && !stById(o.sid)) o.sid = '';
@@ -898,6 +902,7 @@ function bilRead(){
   Object.assign(S.bil, {sid:v('bilSid'), from:v('bilFrom'), to:v('bilTo'), classe:c('bilClasse'), evals:c('bilEvals'), comments:c('bilComments'), sign:c('bilSign')});
   const sc = v('bilScope'); if (BIL_SCOPES.includes(sc)) S.bil.scope = sc;
   if (REF[Number(v('bilPole'))]) S.bil.pole = Number(v('bilPole'));
+  const ep = v('bilEp'); if (ep === 'all' || EP_BILAN.some(e => e.code === ep)) S.bil.ep = ep;
   if (REF[Number(v('bilBloc'))]) S.bil.bloc = Number(v('bilBloc'));
   if (v('bilMod') && v('bilMod') !== S.bil.module){ S.bil.module = v('bilMod'); S.bilModAuto = false; }
   bilSave(); bilFormSync(); renderBilans();
@@ -906,15 +911,16 @@ function renderBilans(){
   const out = $('#bilOut'); if (!out) return;
   const o = S.bil, studs = sortedStudents(), btn = $('[data-act="bil-print"]');
   const list = o.sid && stById(o.sid) ? [stById(o.sid)] : studs;
-  const meta = $('#bilMeta'); if (meta) meta.textContent = `${bilScopeLabel(o)} · ${list.length} page${list.length > 1 ? 's' : ''} à imprimer (une par étudiant)`;
   const empty = (t, m) => { out.innerHTML = `<div class="card empty"><h2>${t}</h2><p>${m}</p></div>`; if (btn) btn.disabled = true; };
-  if (!studs.length) return empty('Aucun étudiant dans cette classe', 'Ajoutez les étudiants dans l\'onglet Étudiants.');
+  if (!studs.length){ const meta = $('#bilMeta'); if (meta) meta.textContent = bilScopeLabel(o); return empty('Aucun étudiant dans cette classe', 'Ajoutez les étudiants dans l\'onglet Étudiants.'); }
   if (UNIFIED && o.scope === 'module' && !S.prog){
     if (!S.progErr) ensureAtelier().catch(() => {});
     return empty(S.progErr ? 'Progression indisponible' : 'Chargement de la progression…', S.progErr ? esc(S.progErr) : 'Les modules de formation s\'affichent dans un instant.');
   }
-  const parts = bilParts(o).map(bilPrepare);
-  out.innerHTML = list.map(s => bilPage(s, parts, o)).join('');
+  const parts = bilParts(o).map(bilPrepare), sep = parts.some(p => p.separate) && parts.length > 1;
+  const docs = sep ? list.flatMap(s => parts.map(p => [s, [p]])) : list.map(s => [s, parts]);
+  const meta = $('#bilMeta'); if (meta) meta.textContent = `${bilScopeLabel(o)} · ${docs.length} bilan${docs.length > 1 ? 's' : ''} à imprimer (${sep ? 'un par étudiant et par épreuve, chacun sur ses pages' : 'un par étudiant'})`;
+  out.innerHTML = docs.map(([s, ps]) => bilPage(s, ps, o)).join('');
   if (btn) btn.disabled = false;
 }
 VIEWS.bilans = {
@@ -922,7 +928,7 @@ VIEWS.bilans = {
     if (S.route.id) S.bil.sid = S.route.id;
     const o = S.bil, ck = (id, on, t) => `<label><input type="checkbox" id="${id}"${on ? ' checked' : ''}> ${t}</label>`;
     const scopes = UNIFIED
-      ? [['global', 'Global · les 4 pôles'], ['epreuves', 'Épreuves ' + listFr(EP_BILAN.map(e => e.code))], ['pole', 'Un pôle (une épreuve)'], ['module', 'Un module de formation']]
+      ? [['global', 'Global · les 4 pôles'], ['epreuves', 'Par épreuve (' + EP_BILAN.map(e => e.code).join(', ') + ')'], ['pole', 'Un pôle'], ['module', 'Un module de formation']]
       : [['bloc', 'Un bloc'], ['global', 'Les blocs ' + UNITS.join(' et ')]];
     return `<div class="bil-tools"><div class="vhead"><div class="grow"><h1>Bilans de compétences</h1><div class="meta" id="bilMeta"></div></div>
         <div class="actions"><button class="btn btn-primary" type="button" data-act="bil-print">Imprimer ou enregistrer en PDF</button></div></div>
@@ -930,6 +936,7 @@ VIEWS.bilans = {
         <label class="fld"><span>Étudiant</span><select id="bilSid"></select></label>
         <label class="fld"><span>Bilan</span><select id="bilScope">${scopes.map(([k, t]) => `<option value="${k}"${k === o.scope ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         ${UNIFIED ? `<label class="fld" id="bilPoleWrap"><span>Pôle</span><select id="bilPole">${UNITS.map(u => `<option value="${u}"${u === o.pole ? ' selected' : ''}>${esc(REF[u].label)}${epOf(u) ? ' · ' + epOf(u).code : ''}</option>`).join('')}</select></label>
+          <label class="fld" id="bilEpWrap"><span>Épreuve</span><select id="bilEp"><option value="all"${o.ep === 'all' ? ' selected' : ''}>${esc(listFr(EP_BILAN.map(e => e.code)))} : un bilan par épreuve</option>${EP_BILAN.map(e => `<option value="${e.code}"${e.code === o.ep ? ' selected' : ''}>${e.code} · ${esc(REF[e.unit].label)}</option>`).join('')}</select></label>
           <label class="fld" id="bilModWrap"><span>Module de formation</span><select id="bilMod"></select></label>`
           : `<label class="fld" id="bilBlocWrap"><span>${esc(UNIT)}</span><select id="bilBloc">${UNITS.map(u => `<option value="${u}"${u === o.bloc ? ' selected' : ''}>${esc(REF[u].label)}</option>`).join('')}</select></label>`}
         <label class="fld"><span>Évaluations du</span><input type="date" id="bilFrom" value="${esc(o.from)}"></label>
